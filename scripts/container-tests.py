@@ -34,7 +34,12 @@ def main(arguments: list[str]) -> int:
     )
     if tooling.returncode:
         return tooling.returncode
-    result = subprocess.run([*command, "tests", "--security-strict"], check=False)  # nosec B603
+    # --security-strict is registered by tests/security/conftest.py, which pytest only loads
+    # as an initial conftest when that directory is named, so the suites run separately.
+    result = subprocess.run([*command, "tests", "--ignore=tests/security"], check=False)  # nosec B603
+    if result.returncode:
+        return result.returncode
+    result = subprocess.run([*command, "tests/security", "--security-strict"], check=False)  # nosec B603
     if result.returncode:
         return result.returncode
     return main(["scenario"])

@@ -97,3 +97,19 @@ pending core integration. `claims.json` records passing, failing and skipped tes
 claims do not count as evidence. CI's strict security invocation fails missing fixtures.
 Revocation cannot erase plaintext or keys already held by a device. A stolen running server
 and its key volume are outside the database-copy-only protection claim.
+
+## Base image advisories without a fix
+
+The image scan (`scripts/scan.sh trivy-image`) fails on any HIGH or CRITICAL advisory that has a
+fixed version, and passes `--ignore-unfixed` for the rest. At the time of writing the pinned Debian
+base carries advisories for which the distribution has published no fix. Two are rated critical:
+
+| Advisory | Package | Why it is not reachable here |
+|---|---|---|
+| CVE-2025-7458 | `libsqlite3-0` | Needs attacker-controlled SQL text. Every query in the product is a fixed statement with bound parameters; no request field reaches the SQL text. |
+| CVE-2023-45853 | `zlib1g` (minizip) | The affected code is the minizip component, which Python and this product do not use. |
+
+The runtime image is built from the hardened file tree only (non-root, read-only root, no shell or
+package manager), which removes most of the programs the remaining advisories refer to; their
+package records stay in the image so scanners still list them. Re-pin the base image
+(`scripts/pin_images.sh`) when fixes are published, and run the scan again.

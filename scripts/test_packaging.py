@@ -57,9 +57,9 @@ class ImageBoundaryTests(unittest.TestCase):
                 if name.endswith("_IMAGE"):
                     self.assertRegex(value, r"^[\w./:-]+@sha256:[a-f0-9]{64}$")
                     pins[name] = value
-        self.assertEqual(len(pins), 10)
+        self.assertEqual(len(pins), 12)
         for line in (ROOT / "Dockerfile").read_text(encoding="utf-8").splitlines():
-            if line.startswith("FROM "):
+            if line.startswith("FROM ") and line.split()[1] != "scratch":
                 self.assertIn(line.split()[1], pins.values())
 
     def test_runtime_has_no_shell_entrypoint_or_healthcheck(self):

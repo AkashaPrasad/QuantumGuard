@@ -13,7 +13,7 @@ sed -e "s|^FROM .* AS web-build|FROM $node AS web-build|" \
     -e "s|^FROM .* AS python-build|FROM $python AS python-build|" \
     -e "s|^FROM .* AS python-tools|FROM $python AS python-tools|" \
     -e "s|^FROM .* AS test$|FROM $python AS test|" \
-    -e "s|^FROM .* AS runtime|FROM $python AS runtime|" \
+    -e "s|^FROM .* AS runtime-base$|FROM $python AS runtime-base|" \
     "$QG_ROOT/Dockerfile" > "$temporary/Dockerfile"
 sed -e "s|    image: \${QG_CADDY_IMAGE:.*|    image: \${QG_CADDY_IMAGE:-$caddy}|" \
     "$QG_ROOT/docker-compose.yml" > "$temporary/docker-compose.yml"

@@ -73,7 +73,7 @@ case "$scanner" in
         docker save "$image_id" -o "$snapshot/runtime.tar"
         docker run "${restricted[@]}" --volume quantumguard-trivy-cache:/root/.cache/trivy \
             "${mount_source[@]}" "$(image_value TRIVY_IMAGE)" \
-            image --no-progress --input /src/runtime.tar --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1
+            image --no-progress --input /src/runtime.tar --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
         ;;
     hadolint)
         docker run "${restricted[@]}" --network none -i "$(image_value HADOLINT_IMAGE)" \

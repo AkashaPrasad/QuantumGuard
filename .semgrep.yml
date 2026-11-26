@@ -43,7 +43,15 @@ rules:
     languages: [python]
     severity: ERROR
     message: Never log credential or key objects.
-    pattern-either:
-      - pattern: $LOG.$METHOD(..., $OBJ.private_key, ...)
-      - pattern: $LOG.$METHOD(..., $OBJ.passphrase, ...)
-      - pattern: $LOG.$METHOD(..., $OBJ.session_key, ...)
+    # Only calls on a logger (or print) count; passing a passphrase to a keystore function is not logging.
+    patterns:
+      - pattern-either:
+          - pattern: $LOG.$METHOD(..., $OBJ.private_key, ...)
+          - pattern: $LOG.$METHOD(..., $OBJ.passphrase, ...)
+          - pattern: $LOG.$METHOD(..., $OBJ.session_key, ...)
+          - pattern: print(..., $OBJ.private_key, ...)
+          - pattern: print(..., $OBJ.passphrase, ...)
+          - pattern: print(..., $OBJ.session_key, ...)
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: ^(debug|info|warning|warn|error|exception|critical|fatal|log|msg|bind|new)$

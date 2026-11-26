@@ -26,11 +26,13 @@ docker run --rm --privileged --name "$container" \
         cd /work
         test ! -e info.txt
         test ! -e .env
-        dockerd-entrypoint.sh >/tmp/dockerd.log 2>&1 &
+        # The image entrypoint points DOCKER_HOST at a host named docker; use the local socket.
+        export DOCKER_HOST=unix:///var/run/docker.sock
+        dockerd-entrypoint.sh >/var/log/dockerd.log 2>&1 &
         count=0
         until docker info >/dev/null 2>&1; do
             count=$((count + 1))
-            if [ "$count" -ge 60 ]; then cat /tmp/dockerd.log; exit 1; fi
+            if [ "$count" -ge 60 ]; then cat /var/log/dockerd.log; exit 1; fi
             sleep 1
         done
         exec bash scripts/readme-container.sh

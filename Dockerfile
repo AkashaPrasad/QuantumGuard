@@ -44,7 +44,9 @@ COPY cli/ ./cli/
 COPY tests/ ./tests/
 COPY scenarios/ ./scenarios/
 COPY spec/ ./spec/
+COPY bench/ ./bench/
 COPY scripts/ ./scripts/
+COPY Dockerfile docker-compose.yml ./
 RUN python -c "import os; os.mkdir('/results'); os.chown('/results', 10001, 10001); os.chmod('/results', 0o700)"
 USER 10001:10001
 ENTRYPOINT ["/app/backend/.venv/bin/python", "/app/scripts/container-tests.py"]
@@ -54,18 +56,24 @@ COPY --from=uv /uv /usr/local/bin/uv
 RUN pip install --no-cache-dir bandit==1.8.3 pip-audit==2.9.0
 WORKDIR /src
 
-FROM docker.io/library/python:3.12-slim-bookworm@sha256:44cf1793efa7c7a476bb0f2cff81443f4a072c90c1cb127e2924933daa3e8c64 AS runtime
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
-    PATH=/app/backend/.venv/bin:/usr/local/bin \
-    QG_DATA_DIR=/var/lib/quantumguard/data \
-    QG_KEYS_DIR=/var/lib/quantumguard/keys \
-    QG_PORT=8080 QG_WEB_DIST=/app/web/dist QG_DEMO=0
+FROM docker.io/library/python:3.12-slim-bookworm@sha256:44cf1793efa7c7a476bb0f2cff81443f4a072c90c1cb127e2924933daa3e8c64 AS runtime-base
 WORKDIR /app/backend
 COPY --from=python-build /app/backend/.venv /app/backend/.venv
 COPY --from=web-build /build/web/dist /app/web/dist
 COPY scripts/container-entrypoint.py /app/entrypoint.py
 COPY scripts/harden-runtime.py /build/harden-runtime.py
 RUN ["/usr/local/bin/python3", "/build/harden-runtime.py"]
+
+# Flatten the hardened filesystem so files deleted above do not stay in lower layers.
+FROM scratch AS runtime
+COPY --from=runtime-base / /
+ENV LANG=C.UTF-8 PYTHON_VERSION=3.12.16 \
+    PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
+    PATH=/app/backend/.venv/bin:/usr/local/bin \
+    QG_DATA_DIR=/var/lib/quantumguard/data \
+    QG_KEYS_DIR=/var/lib/quantumguard/keys \
+    QG_PORT=8080 QG_WEB_DIST=/app/web/dist QG_DEMO=0
+WORKDIR /app/backend
 USER 10001:10001
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
