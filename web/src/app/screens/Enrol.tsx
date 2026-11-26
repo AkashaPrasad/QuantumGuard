@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { isCode } from '@/lib/errors'
-import { useDocumentTitle, useOnline } from '@/lib/hooks'
+import { useDocumentTitle, useOnline, useReducedMotion } from '@/lib/hooks'
 import { cn } from '@/lib/utils'
 import { KeyIssue } from '@/motion/KeyIssue'
 import { useClient, useDeviceState } from '../client-context'
@@ -98,6 +98,33 @@ export default function Enrol() {
   const [enrolled, setEnrolled] = useState<LocalDevice | null>(null)
   const firstField = useRef<HTMLInputElement>(null)
   const startedHere = useRef(false)
+  const reduced = useReducedMotion()
+  // Real steps can finish within a few milliseconds of each other. Each one is still shown
+  // long enough to be read; nothing is shown before it has actually happened.
+  const queue = useRef<EnrolStep[]>([])
+  const pump = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastQueued = useRef<EnrolStep | null>(null)
+  const reveal = (step: EnrolStep) => {
+    if (lastQueued.current === step) return
+    lastQueued.current = step
+    queue.current.push(step)
+    const tick = () => {
+      const next = queue.current.shift()
+      if (!next) {
+        pump.current = null
+        return
+      }
+      setProgress(next)
+      pump.current = setTimeout(tick, reduced ? 0 : 480)
+    }
+    if (pump.current === null) tick()
+  }
+  const drained = () =>
+    new Promise<void>((resolve) => {
+      const check = () => (queue.current.length === 0 && pump.current === null ? resolve() : setTimeout(check, 60))
+      check()
+    })
+  useEffect(() => () => clearTimeout(pump.current ?? undefined), [])
 
   useEffect(() => {
     firstField.current?.focus()
@@ -118,11 +145,14 @@ export default function Enrol() {
     setRunning(true)
     setError(null)
     setProgress(null)
+    queue.current = []
+    lastQueued.current = null
     try {
-      const device = await client.enrol({ code: code.trim(), device_name: deviceName.trim(), passphrase }, setProgress)
+      const device = await client.enrol({ code: code.trim(), device_name: deviceName.trim(), passphrase }, reveal)
       setPassphrase('')
       setConfirm('')
-      setProgress('session_started')
+      reveal('session_started')
+      await drained()
       setEnrolled(device)
     } catch (err) {
       setError(err)
