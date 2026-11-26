@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="t">
+  <title id="t">QuantumGuard</title>
+  <rect width="128" height="128" rx="28" fill="#10132A"/>
+  <line x1="64" y1="64" x2="95.5" y2="95.5" stroke="#98A4FF" stroke-opacity=".35" stroke-width="2.25"/>
+  <line x1="64" y1="64" x2="32.5" y2="95.5" stroke="#98A4FF" stroke-opacity=".35" stroke-width="2.25"/>
+  <line x1="64" y1="64" x2="95.5" y2="32.5" stroke="#98A4FF" stroke-opacity=".35" stroke-width="2.25"/>
+  <line x1="64" y1="64" x2="32.5" y2="32.5" stroke="#98A4FF" stroke-opacity=".35" stroke-width="2.25"/>
+  <rect x="26.875" y="26.875" width="11.25" height="11.25" rx="1.35" fill="#EEF0FF"/>
+  <rect x="58.375" y="26.875" width="11.25" height="11.25" rx="1.35" fill="#EEF0FF"/>
+  <rect x="89.875" y="26.875" width="11.25" height="11.25" rx="1.35" fill="#EEF0FF"/>
+  <rect x="26.875" y="58.375" width="11.25" height="11.25" rx="1.35" fill="#EEF0FF"/>
+  <rect x="50.5" y="50.5" width="27" height="27" rx="2.7" fill="#98A4FF"/>
+  <rect x="89.875" y="58.375" width="11.25" height="11.25" rx="1.35" fill="#EEF0FF"/>
+  <rect x="26.875" y="89.875" width="11.25" height="11.25" rx="1.35" fill="#EEF0FF"/>
+  <rect x="58.375" y="89.875" width="11.25" height="11.25" rx="1.35" fill="#EEF0FF"/>
+  <rect x="89.875" y="89.875" width="11.25" height="11.25" rx="1.35" fill="#EEF0FF"/>
+</svg>

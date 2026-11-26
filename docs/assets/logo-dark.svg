@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="120" viewBox="0 0 560 120" role="img" aria-labelledby="t">
+  <title id="t">QuantumGuard</title>
+  <line x1="60" y1="60" x2="93.6" y2="93.6" stroke="#98A4FF" stroke-opacity=".35" stroke-width="2.4"/>
+  <line x1="60" y1="60" x2="26.4" y2="93.6" stroke="#98A4FF" stroke-opacity=".35" stroke-width="2.4"/>
+  <line x1="60" y1="60" x2="93.6" y2="26.4" stroke="#98A4FF" stroke-opacity=".35" stroke-width="2.4"/>
+  <line x1="60" y1="60" x2="26.4" y2="26.4" stroke="#98A4FF" stroke-opacity=".35" stroke-width="2.4"/>
+  <rect x="20.4" y="20.4" width="12" height="12" rx="1.44" fill="#EEF0FF"/>
+  <rect x="54" y="20.4" width="12" height="12" rx="1.44" fill="#EEF0FF"/>
+  <rect x="87.6" y="20.4" width="12" height="12" rx="1.44" fill="#EEF0FF"/>
+  <rect x="20.4" y="54" width="12" height="12" rx="1.44" fill="#EEF0FF"/>
+  <rect x="45.6" y="45.6" width="28.8" height="28.8" rx="2.88" fill="#98A4FF"/>
+  <rect x="87.6" y="54" width="12" height="12" rx="1.44" fill="#EEF0FF"/>
+  <rect x="20.4" y="87.6" width="12" height="12" rx="1.44" fill="#EEF0FF"/>
+  <rect x="54" y="87.6" width="12" height="12" rx="1.44" fill="#EEF0FF"/>
+  <rect x="87.6" y="87.6" width="12" height="12" rx="1.44" fill="#EEF0FF"/>
+  <text x="132" y="68" font-family="Inter, 'Segoe UI', -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="50" font-weight="700" letter-spacing="-1.5" fill="#EEF0FF">Quantum<tspan fill="#98A4FF">Guard</tspan></text>
+  <text x="134" y="98" font-family="Inter, 'Segoe UI', -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="16" font-weight="500" letter-spacing="2.4" fill="#A3A9C2">POST-QUANTUM FILE PROTECTION</text>
+</svg>
