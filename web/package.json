@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test:crypto": "vitest run src/crypto",
     "test:e2e": "playwright test --project=mock --project=mock-idle --grep-invert @a11y",
-    "test:a11y": "playwright test --project=mock --grep @a11y"
+    "test:a11y": "playwright test --project=mock --grep @a11y",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",
@@ -57,5 +59,6 @@
     "typescript": "7.0.2",
     "vite": "8.3.8",
     "vitest": "5.1.0"
-  }
+  },
+  "packageManager": "pnpm@12.8.1"
 }
