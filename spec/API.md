@@ -283,8 +283,8 @@ Approving your own request, or a request that targets you, answers `QG_DENY_POLI
 | `GET /services` | admin, operator, auditor | `[{service_id, name, status, keys:[{key_id, alg, status: "active"|"retiring"|"retired", created_at, retired_at | null}]}]` |
 | `POST /services` | admin | `{name}` -> service with its first key |
 | `POST /services/{id}/rotate` | admin; operator with `emergency: true` | `{reason, emergency}` -> service; publishes a new signed key set |
-| `GET /messages` | everyone | `[{message_id, from:{user_id, name, device_id}, sent_at, envelope:{xwing_ct, ciphertext}, signature}]`: only the envelope addressed to the calling device; `signature` is the sender's, over the message statement in `spec/SUITE.md` |
-| `POST /messages` | everyone | `{to_user_id, envelopes:[{device_id, xwing_ct, ciphertext}], signature}` -> `{message_id}` |
+| `GET /messages` | everyone | `[{message_id, from:{user_id, name, device_id}, to_user_id, sent_at, envelope:{xwing_ct, ciphertext}, envelope_digests:[{device_id, digest}], signature}]`. `envelope` is the calling device's only. `envelope_digests` lists the digest of every envelope of the message, sorted by `device_id`; the sender's signature covers those digests and `to_user_id` (`spec/SUITE.md` 11), so any one recipient device can verify it without seeing the others' ciphertext |
+| `POST /messages` | everyone | `{to_user_id, envelopes:[{device_id, xwing_ct, ciphertext}], signature}` -> `{message_id}`. The server recomputes the envelope digests and answers `QG_BAD_SIGNATURE` when the signature does not cover them |
 | `POST /files/{id}/recover` | admin holding the recovery kit | `{change_id}` -> `{recovery_wrap, wrap_epoch, version, file_id, manifest, manifest_sig, signer_device_id, lease:{lease_id, expires_at}, receipt_id}` only when that `recovery_release` change is applied. Each change releases once (`QG_CONFLICT` / `already_used`); a file committed before a kit existed answers `QG_NOT_FOUND` / `no_recovery_slot` |
 
 `GET /keys` (public) -> `{suite, epoch, keys:[{service_id, key_id, alg, public_key, status}], signatures:{ed25519, mldsa}}`.
