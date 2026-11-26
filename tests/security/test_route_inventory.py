@@ -1,10 +1,9 @@
 """The API contract's public list is exact; documentation/debug routes are private."""
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 import pytest
-
 
 CONTRACT = Path(__file__).resolve().parents[2] / "spec/API.md"
 section = CONTRACT.read_text(encoding="utf-8").split("## 2. Public routes (no session)", 1)[1].split("## 3.", 1)[0]

@@ -1,17 +1,16 @@
 """Local-only security fixtures and machine-readable claim outcomes."""
 
-from datetime import datetime, timedelta, timezone
 import importlib
 import importlib.util
 import ipaddress
 import json
 import os
-from pathlib import Path
 import socket
 import sys
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[2]
 for source in (ROOT / "cli", ROOT / "backend"):
@@ -31,7 +30,7 @@ def unavailable(request, message):
 
 class Clock:
     def __init__(self):
-        self.value = datetime.now(timezone.utc)
+        self.value = datetime.now(UTC)
 
     def __call__(self):
         return self.value
