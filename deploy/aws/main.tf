@@ -155,6 +155,10 @@ resource "aws_vpc_security_group_ingress_rule" "from_link" {
   to_port                      = 8080
 }
 
+# Outbound HTTPS to any address is a known, accepted exposure of this demo setup: the instance pulls its image
+# and packages and talks to Systems Manager over public endpoints. Closing it needs private VPC endpoints for
+# each of those services. It is listed under "Limits" in deploy/README.md.
+#trivy:ignore:AVD-AWS-0104
 resource "aws_vpc_security_group_egress_rule" "https" {
   security_group_id = aws_security_group.backend.id
   description       = "Image pulls, package updates, Systems Manager"

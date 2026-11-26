@@ -64,6 +64,9 @@ Docker volumes and survive the restart.
 
 - **One instance, no backups.** The database and the server's keys live on one encrypted disk. Losing the instance
   loses the evidence log. A real deployment needs snapshots at least.
+- **The instance can reach any address on port 443.** It needs its image registry, package mirrors and Systems
+  Manager, all on public endpoints. Restricting this takes private VPC endpoints, which this demo does not pay for.
+  The scanner's finding for it (AVD-AWS-0104) is suppressed in `aws/main.tf` with this reason.
 - **Plain HTTP for the last hop.** The gateway reaches the proxy over the VPC's private network without TLS. Requests
   are still authenticated end to end (session MAC) and file contents are encrypted before they leave the browser,
   but headers and metadata are readable to anyone who can observe that private network.
