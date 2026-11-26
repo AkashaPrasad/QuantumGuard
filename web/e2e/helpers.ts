@@ -11,7 +11,7 @@ export const TOUR_ROLE_KEYS = ['employee', 'admin', 'operator', 'auditor']
  */
 export const test = base.extend<{ seedTour: boolean }>({
   seedTour: [true, { option: true }],
-  page: async ({ page, seedTour }, use) => {
+  page: async ({ page, seedTour }, provide) => {
     if (seedTour) {
       await page.addInitScript(
         ([key, roles]) => {
@@ -29,7 +29,7 @@ export const test = base.extend<{ seedTour: boolean }>({
     page.on('console', (m) => {
       if (/Content Security Policy/i.test(m.text())) csp.push(m.text())
     })
-    await use(page)
+    await provide(page)
     expect(csp, 'Content Security Policy console messages').toEqual([])
   },
 })
