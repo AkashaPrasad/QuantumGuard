@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Check, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { qk, useClient } from '@/app/client-context'
 import { Ident } from '@/components/qg/ident'
@@ -8,6 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { detectNativePq } from '@/crypto/native'
 import { exactTime } from '@/lib/format'
 import { useDocumentTitle } from '@/lib/hooks'
+import { ServerPulse } from '@/motion/ServerPulse'
+import type { PulsePhase, PulseState } from '@/motion/ServerPulse'
 import { cn } from '@/lib/utils'
 import { PublicLayout } from './PublicLayout'
 
@@ -23,14 +25,51 @@ function Row({ label, ok, children }: { label: string; ok?: boolean | null; chil
   )
 }
 
+/**
+ * Tracks the server across an outage: `up` while it answers, `down` once a check fails after it answered, `back`
+ * when it answers again. The durable state seen last before the outage is kept to compare with the state after.
+ */
+function usePulse(answering: boolean | null, state: PulseState, reread: () => void) {
+  const [phase, setPhase] = useState<PulsePhase>('waiting')
+  const [before, setBefore] = useState<PulseState>({ epoch: null, logSize: null })
+  const downAt = useRef<number | null>(null)
+  const [downSeconds, setDownSeconds] = useState<number | null>(null)
+  useEffect(() => {
+    if (answering === null) return
+    if (!answering) {
+      if (phase === 'up' || phase === 'back') {
+        downAt.current = Date.now()
+        setPhase('down')
+      }
+      return
+    }
+    if (phase === 'waiting') setPhase('up')
+    if (phase === 'down') {
+      setDownSeconds(downAt.current ? Math.max(1, Math.round((Date.now() - downAt.current) / 1000)) : null)
+      setPhase('back')
+      reread()
+    }
+  }, [answering, phase, reread])
+  useEffect(() => {
+    // Remember the last state read while the server was up and before any outage.
+    if (phase === 'up' && state.epoch !== null && state.logSize !== null) setBefore(state)
+  }, [phase, state.epoch, state.logSize]) // eslint-disable-line react-hooks/exhaustive-deps
+  return { phase, before, after: phase === 'back' ? state : before, downSeconds }
+}
+
 /** Public status page: what this server says about itself, and what this browser can do. */
 export default function Status() {
   useDocumentTitle('Status')
   const client = useClient()
-  const health = useQuery({ queryKey: ['health'], queryFn: () => client.health(), refetchInterval: 15_000 })
+  // Health every second drives the heartbeat; the durable state is re-read every few seconds and right after
+  // the server comes back, so an outage and what survived it are both visible here.
+  const health = useQuery({ queryKey: ['health'], queryFn: () => client.health(), refetchInterval: 1_000, retry: false })
   const meta = useQuery({ queryKey: qk.meta, queryFn: () => client.meta() })
-  const directory = useQuery({ queryKey: qk.directory, queryFn: () => client.directory(), refetchInterval: 15_000 })
-  const checkpoint = useQuery({ queryKey: qk.checkpoint, queryFn: () => client.checkpoint(), refetchInterval: 15_000 })
+  const directory = useQuery({ queryKey: qk.directory, queryFn: () => client.directory(), refetchInterval: 3_000, retry: false })
+  const checkpoint = useQuery({ queryKey: qk.checkpoint, queryFn: () => client.checkpoint(), refetchInterval: 3_000, retry: false })
+  const pulse = usePulse(health.isPending ? null : health.isError ? false : health.data?.status === 'ok',
+    { epoch: directory.data?.epoch ?? null, logSize: checkpoint.data?.tree_size ?? null },
+    () => { void directory.refetch(); void checkpoint.refetch() })
   const [native, setNative] = useState<{ mlkem: boolean; mldsa: boolean } | null>(null)
   useEffect(() => {
     void detectNativePq().then(setNative, () => setNative({ mlkem: false, mldsa: false }))
@@ -44,6 +83,9 @@ export default function Status() {
         <p className="label-caps">Status</p>
         <h1 className="mt-2 font-display text-5xl font-normal tracking-normal">What this server says about itself</h1>
         <p className="mt-3 text-muted-foreground">Read from the public routes, which need no session. Refreshes every 15 seconds.</p>
+
+        <h2 className="mt-10 mb-2 text-lg">Heartbeat</h2>
+        <ServerPulse {...pulse} />
 
         <h2 className="mt-10 mb-2 text-lg">Service</h2>
         <dl className="border border-rule bg-card px-4" data-testid="status-service">
