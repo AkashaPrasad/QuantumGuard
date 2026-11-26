@@ -43,10 +43,12 @@ def test_pending_rekey_must_keep_the_remaining_recipients(env):
     fid = aiko.protect("plan.txt", b"owner content", "confidential",
                        [dan.device_id, tomas.device_id])["file"]["file_id"]
     aiko.post(f"/api/v1/files/{fid}/unshare", {"user_id": tomas.user_id})  # queues a re-key
-    item = next(i for i in dan.rekey_pending()["rekeys"] if i["file_id"] == fid)
+    # r2 contract: re-key jobs are listed to the owner's devices only (spec/API.md section 6)
+    item = next(i for i in aiko.rekey_pending()["rekeys"] if i["file_id"] == fid)
     assert sorted(item["recipients"]) == sorted([aiko.device_id, dan.device_id])
 
     r = _rekey_as(env, dan, fid, b"owner content", [dan.device_id])  # commits for fewer than the listed recipients
 
     assert r.status_code == 403, f"re-key for a subset of the remaining recipients was accepted ({r.status_code})"
+    assert (r.json()["error"]["code"], r.json()["error"]["reason"]) == ("QG_DENY_POLICY", "owner_required")
     assert aiko.open(fid) == b"owner content"
