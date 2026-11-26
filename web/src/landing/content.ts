@@ -51,7 +51,7 @@ export const PRODUCT = [
     group: 'Detect',
     items: [
       ['Fourteen explainable rules', 'Rules, simple statistics and a privilege graph. No machine learning. Every alert names its rule and the receipts that matched.'],
-      ['Scoped automatic responses', 'A response touches one session, device or identity, has an end time, and an operator can lift it.'],
+      ['Scoped automatic responses', 'A response touches one session, device, identity or source. Most end by themselves, and an operator can lift any of them.'],
       ['Exposure, not guesswork', 'For a lost device: which files it opened after the loss time, which it held a key for, and which it never asked for.'],
     ],
   },
@@ -130,7 +130,7 @@ export const QUESTIONS = [
   ],
   [
     'What happens if I forget my passphrase?',
-    'There is no reset. An admin gives you a new code and you enrol the device again. Files stay available from your other devices, and a recovery slot exists that needs two approvals to use.',
+    'There is no reset. An admin gives you a new code and you enrol the device again. Files stay available from your other devices. Once the operator has issued a recovery kit, each new file also carries a recovery slot that needs two approvals to use.',
   ],
   [
     'Does it use AI to detect attacks?',

@@ -87,7 +87,7 @@ function ServerKeys() {
       label: 'Recovery public key',
       value: m.recovery_pk,
       use: m.recovery_pk
-        ? 'Locks the recovery slot of every file. Only the recovery kit can open it, and only after approval.'
+        ? 'Locks the recovery slot of every file protected since the kit was issued. Only the recovery kit can open it, and only after approval.'
         : 'No recovery kit has been issued yet, so files carry no recovery slot. Whoever operates the server issues the kit once with the local admin command.',
     },
   ]

@@ -147,7 +147,7 @@ read `O` as `0` and `I` or `L` as `1`. Clients send what the person typed.
 |---|---|
 | Code unknown, used or expired | `QG_INVALID_INPUT` / `invite_invalid` (one answer for all three) |
 | Signature or key confirmation wrong | `QG_BAD_SIGNATURE` / `proof_failed` |
-| A loss report is open for this person | `QG_QUARANTINED` / `enrolment_held` (rule QG-R011). The hold lasts until an operator closes the incident or lifts the response, even after the files have new keys |
+| A loss report is open for this person | `QG_QUARANTINED` / `enrolment_held` (rule QG-R011). The hold applies while the incident is open or re-keying, and after a refused attempt it stays until an operator lifts the response |
 
 ### 4.2 Session
 
