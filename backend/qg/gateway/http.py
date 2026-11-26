@@ -122,7 +122,8 @@ def json_body(model: type[BaseModel]) -> Any:
             if exc.code == "QG_BAD_SUITE":
                 ctx = getattr(request.state, "ctx", None)
                 subject = ctx.subject if ctx else {"user_id": None, "device_id": None, "session_id": None}
-                await run_in_threadpool(core_of(request).emit_now, "bad_suite", subject, None, route=request.url.path)
+                await run_in_threadpool(core_of(request).emit_now, "bad_suite", subject, None, route=request.url.path,
+                                        source=client_ip(request))
             raise
 
     dep.__qg_body__ = model  # type: ignore[attr-defined]

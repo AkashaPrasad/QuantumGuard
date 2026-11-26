@@ -100,6 +100,13 @@ def test_report_lost_bundle_verify_selftest(cli, server, tmp_path):
     assert "QG_" in cap.err and "Traceback" not in cap.err
 
     priya, _ = enroll(cli, server, tmp_path, "Priya Raman", "priya")
+    # the lost device's attempt is an alert that names the identity, the service and the event
+    alerts = cli.json("alerts", "--rule", "QG-R001", "--keystore", priya)["alerts"]
+    assert len(alerts) == 1
+    assert alerts[0]["identity"]["device_id"] == lout["device_id"]
+    assert alerts[0]["identity"]["name"] == "Jonas Weber"
+    assert alerts[0]["service"] and alerts[0]["event"]["kind"] == "revoked_device_attempt"
+    assert "QG-R001" in cli.run("alerts", "--keystore", priya).out
     bundle = tmp_path / "bundle.json"
     cli.run("export-bundle", res["incident_id"], "--out", bundle, "--keystore", priya)
     cap = cli.run("verify", bundle)

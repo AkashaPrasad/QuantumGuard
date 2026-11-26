@@ -35,6 +35,24 @@ def check_explanation(alert: dict[str, Any], *, receipts: bool = True) -> None:
     assert isinstance(exp["condition"], str) and exp["condition"].strip()
     if receipts:
         assert exp["receipt_ids"]
+    check_names(alert)
+
+
+SERVICES = {"changes", "directory", "enrolment", "evidence-log", "files", "gateway", "identity-signals",
+            "key-release", "messages", "service-keys"}
+
+
+def check_names(alert: dict[str, Any]) -> None:
+    """Every alert names the identity, the service and the event it concerns."""
+    ident = alert["identity"]
+    assert set(ident) == {"user_id", "name", "device_id", "session_id", "source", "claimed_id"}
+    if ident["user_id"] is not None:
+        assert ident["name"], "an alert about a person names that person"
+    elif alert["rule_id"] != "QG-R013":  # the log self-audit concerns no single identity
+        assert ident["device_id"] or ident["session_id"] or ident["source"], "an alert names the identity it concerns"
+    assert alert["service"] in SERVICES
+    assert alert["event"]["kind"] and alert["event"]["kind"] != "unknown"
+    assert alert["event"]["ts"] == alert["ts"]
 
 
 def check_response(alert: dict[str, Any], action: str, kind: str, scope_id: str | None) -> dict[str, Any]:

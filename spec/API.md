@@ -118,7 +118,11 @@ File names and sizes are metadata the server can read; contents and file keys ar
 
 ```
 {id, ts, rule_id, severity: "critical"|"high"|"medium", status: "open"|"acknowledged",
- subject: {user_id, device_id, session_id},   // any may be null
+ identity: {user_id, name, device_id, session_id, source, claimed_id},   // who; before a key is proven only source
+                                                                          // (client address) and the claimed id are known
+ service: "changes"|"directory"|"enrolment"|"evidence-log"|"files"|"gateway"|"identity-signals"|"key-release"|"messages"|"service-keys",
+ event: {kind, ts, ...detail},   // what was observed, e.g. {kind: "access", resource, classification}
+ subject: {user_id, device_id, session_id},   // same ids as identity, kept for older clients
  summary, explanation: {condition, receipt_ids[]},
  response: {id, action: "deny"|"end_session"|"quarantine_device"|"quarantine_identity"|"throttle"|"require_fresh_session"|"hold_enrolment"|"freeze_key_release"|"none",
             scope: {kind: "session"|"device"|"identity"|"credential"|"source"|"global", id}, expires_at | null, lifted_at | null, lifted_by | null} | null,

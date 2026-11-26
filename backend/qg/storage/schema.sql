@@ -85,7 +85,8 @@ CREATE TABLE IF NOT EXISTS rekey_jobs (
 CREATE TABLE IF NOT EXISTS alerts (
   id TEXT PRIMARY KEY, ts TEXT NOT NULL, rule_id TEXT NOT NULL, severity TEXT NOT NULL, status TEXT NOT NULL,
   user_id TEXT, device_id TEXT, session_id TEXT, summary TEXT NOT NULL, condition TEXT NOT NULL,
-  receipt_ids TEXT NOT NULL, response_id TEXT, incident_id TEXT, acknowledged_by TEXT, extra TEXT);
+  receipt_ids TEXT NOT NULL, response_id TEXT, incident_id TEXT, acknowledged_by TEXT, extra TEXT,
+  event_kind TEXT, service TEXT, event_detail TEXT);
 CREATE TABLE IF NOT EXISTS responses (
   id TEXT PRIMARY KEY, alert_id TEXT NOT NULL, action TEXT NOT NULL, scope_kind TEXT NOT NULL, scope_id TEXT,
   created_at TEXT NOT NULL, expires_at TEXT, lifted_at TEXT, lifted_by TEXT, lift_reason TEXT);

@@ -252,6 +252,25 @@ def cmd_devices(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_alerts(args: argparse.Namespace) -> int:
+    query = "&".join(f"{k}={v}" for k, v in (("status", args.status), ("rule_id", args.rule)) if v)
+    with _login_cmd(args) as dev:
+        alerts = _list_all(dev, "/api/v1/alerts" + (f"?{query}" if query else ""))
+
+    def text() -> str:
+        lines = []
+        for a in alerts:
+            who = a.get("identity") or {}
+            ident = who.get("name") or who.get("device_id") or who.get("source") or "-"
+            event = (a.get("event") or {}).get("kind", "-")
+            lines.append(f"{a['ts']}  {a['rule_id']}  {a['severity']:<8}  {a['status']:<12}  identity={ident}  "
+                         f"service={a.get('service', '-')}  event={event}  {a['summary']}")
+        return "\n".join(lines) or "no alerts"
+
+    _emit(args, {"alerts": alerts}, text)
+    return 0
+
+
 def _revoke_out(args: argparse.Namespace, res: dict[str, Any]) -> int:
     keys = ("incident_id", "time_to_enforce_ms", "sessions_ended", "slots_deleted", "receipt_id")
     out = {k: res.get(k) for k in keys}
@@ -527,6 +546,9 @@ def _parser() -> argparse.ArgumentParser:
     s = add("share", cmd_share, "share a file with devices")
     s.add_argument("file_id")
     s.add_argument("--to", action="append", required=True, metavar="DEVICE_ID")
+    s = add("alerts", cmd_alerts, "list alerts with the identity, service and event each names (operator, auditor)")
+    s.add_argument("--status", choices=["open", "acknowledged"])
+    s.add_argument("--rule", metavar="QG-R0NN")
     s = add("devices", cmd_devices, "list devices")
     s.add_argument("--all", action="store_true")
     s = add("report-lost", cmd_report_lost, "report one of your devices lost")

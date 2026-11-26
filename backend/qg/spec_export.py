@@ -126,6 +126,13 @@ SCHEMAS: dict[str, dict[str, Any]] = {
     "alert": _obj({
         "id": ID, "ts": TIME, "rule_id": {"type": "string", "pattern": "^QG-R0[0-1][0-9]$"},
         "severity": {"enum": ["critical", "high", "medium"]}, "status": {"enum": ["open", "acknowledged"]},
+        "identity": _obj({"user_id": {"type": ["string", "null"]}, "name": {"type": ["string", "null"]},
+                          "device_id": {"type": ["string", "null"]}, "session_id": {"type": ["string", "null"]},
+                          "source": {"type": ["string", "null"]}, "claimed_id": {"type": ["string", "null"]}}),
+        "service": {"enum": ["changes", "directory", "enrolment", "evidence-log", "files", "gateway",
+                             "identity-signals", "key-release", "messages", "service-keys"]},
+        "event": {"type": "object", "required": ["kind", "ts"], "properties": {
+            "kind": {"type": "string"}, "ts": TIME}, "additionalProperties": True},
         "subject": _obj({"user_id": {"type": ["string", "null"]}, "device_id": {"type": ["string", "null"]},
                          "session_id": {"type": ["string", "null"]}}),
         "summary": {"type": "string"},
@@ -139,6 +146,9 @@ SCHEMAS: dict[str, dict[str, Any]] = {
             "lifted_by": {"type": ["string", "null"]}})]},
         "incident_id": {"type": ["string", "null"]}, "acknowledged_by": {"type": ["string", "null"]},
     }, example={"id": EX_ID["alr"], "ts": EX_TS, "rule_id": "QG-R001", "severity": "critical", "status": "open",
+                "identity": {"user_id": EX_ID["usr"], "name": "Aiko Tanaka", "device_id": EX_ID["dev"],
+                             "session_id": EX_ID["ses"], "source": None, "claimed_id": None},
+                "service": "gateway", "event": {"kind": "revoked_device_attempt", "ts": EX_TS},
                 "subject": {"user_id": EX_ID["usr"], "device_id": EX_ID["dev"], "session_id": EX_ID["ses"]},
                 "summary": "A revoked device tried to use QuantumGuard and was denied.",
                 "explanation": {"condition": "A request or session attempt came from a device that is revoked.",

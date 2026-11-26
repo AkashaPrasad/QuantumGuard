@@ -43,6 +43,10 @@ class Database:
         cols = {r[1] for r in self._conn.execute("PRAGMA table_info(invites)")}
         if "created_by_device" not in cols:
             self._conn.execute("ALTER TABLE invites ADD COLUMN created_by_device TEXT")
+        cols = {r[1] for r in self._conn.execute("PRAGMA table_info(alerts)")}
+        for col in ("event_kind", "service", "event_detail"):
+            if col not in cols:
+                self._conn.execute(f"ALTER TABLE alerts ADD COLUMN {col} TEXT")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:

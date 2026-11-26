@@ -175,6 +175,17 @@ export interface Alert {
   severity: Severity
   status: 'open' | 'acknowledged'
   subject: { user_id: string | null; device_id: string | null; session_id: string | null }
+  /** Who, where and what: present on alerts from the server (spec/API.md 3.5). */
+  identity?: {
+    user_id: string | null
+    name: string | null
+    device_id: string | null
+    session_id: string | null
+    source: string | null
+    claimed_id: string | null
+  }
+  service?: string
+  event?: { kind: string; ts: string; [detail: string]: string | number }
   summary: string
   explanation: { condition: string; receipt_ids: string[] }
   response: AlertResponse | null

@@ -5,6 +5,10 @@
   "examples": [
     {
       "acknowledged_by": null,
+      "event": {
+        "kind": "revoked_device_attempt",
+        "ts": "2026-11-26T12:00:00.000Z"
+      },
       "explanation": {
         "condition": "A request or session attempt came from a device that is revoked.",
         "receipt_ids": [
@@ -12,6 +16,14 @@
         ]
       },
       "id": "alr_AAAAAAAAAAAAAAAAAAAAAA",
+      "identity": {
+        "claimed_id": null,
+        "device_id": "dev_AAAAAAAAAAAAAAAAAAAAAA",
+        "name": "Aiko Tanaka",
+        "session_id": "ses_AAAAAAAAAAAAAAAAAAAAAA",
+        "source": null,
+        "user_id": "usr_AAAAAAAAAAAAAAAAAAAAAA"
+      },
       "incident_id": "inc_AAAAAAAAAAAAAAAAAAAAAA",
       "response": {
         "action": "deny",
@@ -25,6 +37,7 @@
         }
       },
       "rule_id": "QG-R001",
+      "service": "gateway",
       "severity": "critical",
       "status": "open",
       "subject": {
@@ -42,6 +55,24 @@
         "string",
         "null"
       ]
+    },
+    "event": {
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "ts": {
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}Z$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "ts"
+      ],
+      "type": "object"
     },
     "explanation": {
       "additionalProperties": false,
@@ -66,6 +97,56 @@
     "id": {
       "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
       "type": "string"
+    },
+    "identity": {
+      "additionalProperties": false,
+      "properties": {
+        "claimed_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "device_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "user_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "claimed_id",
+        "device_id",
+        "name",
+        "session_id",
+        "source",
+        "user_id"
+      ],
+      "type": "object"
     },
     "incident_id": {
       "type": [
@@ -159,6 +240,20 @@
       "pattern": "^QG-R0[0-1][0-9]$",
       "type": "string"
     },
+    "service": {
+      "enum": [
+        "changes",
+        "directory",
+        "enrolment",
+        "evidence-log",
+        "files",
+        "gateway",
+        "identity-signals",
+        "key-release",
+        "messages",
+        "service-keys"
+      ]
+    },
     "severity": {
       "enum": [
         "critical",
@@ -212,11 +307,14 @@
   },
   "required": [
     "acknowledged_by",
+    "event",
     "explanation",
     "id",
+    "identity",
     "incident_id",
     "response",
     "rule_id",
+    "service",
     "severity",
     "status",
     "subject",

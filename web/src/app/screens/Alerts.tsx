@@ -142,6 +142,25 @@ function AlertSheet({ id, onClose }: { id: string; onClose: () => void }) {
                   <h3 className="label-caps">Why this fired</h3>
                   <p className="mt-1">{a.explanation.condition}</p>
                 </section>
+                {a.identity || a.service || a.event ? (
+                  <section data-testid="alert-names">
+                    <h3 className="label-caps">Who, where, what</h3>
+                    <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                      <dt className="text-muted-foreground">Identity</dt>
+                      <dd className="data min-w-0 break-words">
+                        {[a.identity?.name ?? names.user(a.identity?.user_id ?? null), names.device(a.identity?.device_id ?? null),
+                          a.identity?.session_id, a.identity?.source && `from ${a.identity.source}`,
+                          a.identity?.claimed_id && `claimed ${a.identity.claimed_id}`].filter(Boolean).join(', ') || 'None (system check)'}
+                      </dd>
+                      <dt className="text-muted-foreground">Service</dt>
+                      <dd className="data">{a.service ?? 'Not recorded'}</dd>
+                      <dt className="text-muted-foreground">Event</dt>
+                      <dd className="data min-w-0 break-words">
+                        {a.event ? Object.entries(a.event).filter(([k]) => k !== 'ts').map(([k, v]) => (k === 'kind' ? String(v) : `${k} ${v}`)).join(', ') : 'Not recorded'}
+                      </dd>
+                    </dl>
+                  </section>
+                ) : null}
                 {a.rule_id === 'QG-R007' && a.path && a.path.length > 0 ? (
                   <section data-testid="alert-path">
                     <h3 className="label-caps">New path</h3>

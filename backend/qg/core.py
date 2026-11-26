@@ -495,12 +495,24 @@ class Core:
                 "lifted_at": r["lifted_at"],
                 "lifted_by": r["lifted_by"],
             }
+        name = None
+        if a["user_id"]:
+            u = conn.execute("SELECT name FROM users WHERE user_id = ?", (a["user_id"],)).fetchone()
+            name = u["name"] if u else None
+        detail = json.loads(a["event_detail"]) if a["event_detail"] else {}
         return {
             "id": a["id"],
             "ts": a["ts"],
             "rule_id": a["rule_id"],
             "severity": a["severity"],
             "status": a["status"],
+            # Who: the proven subject, or for failures before any key is proven, the source address and the
+            # device or person the request claimed to be (the claim is not trusted, only reported).
+            "identity": {"user_id": a["user_id"], "name": name, "device_id": a["device_id"],
+                         "session_id": a["session_id"], "source": detail.get("source"),
+                         "claimed_id": detail.get("claim")},
+            "service": a["service"] or "gateway",
+            "event": {"kind": a["event_kind"] or "unknown", "ts": a["ts"], **detail},
             "subject": {"user_id": a["user_id"], "device_id": a["device_id"], "session_id": a["session_id"]},
             "summary": a["summary"],
             "explanation": {"condition": a["condition"], "receipt_ids": json.loads(a["receipt_ids"])},

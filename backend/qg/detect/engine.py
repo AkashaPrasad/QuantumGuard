@@ -32,6 +32,46 @@ def load_rules() -> list[Rule]:
     return out
 
 
+# The QuantumGuard service each security event was observed on, so every alert names it.
+_SERVICE_BY_EVENT = {
+    "access": "key-release",
+    "bad_suite": "gateway",
+    "checkpoint_mismatch": "evidence-log",
+    "denied": "gateway",
+    "enrol_during_loss": "enrolment",
+    "grant_applied": "changes",
+    "mac_failure": "gateway",
+    "privilege_observed": "identity-signals",
+    "replay": "gateway",
+    "retired_key_used": "service-keys",
+    "revoked_device_attempt": "gateway",
+    "stale_epoch": "directory",
+}
+_SERVICE_BY_OBJECT = {
+    "approval": "changes",
+    "change": "changes",
+    "file": "files",
+    "manifest": "files",
+    "message": "messages",
+    "service key": "service-keys",
+    "share": "files",
+}
+_DETAIL_KEYS = ("action", "code", "kind", "resource", "key_id", "classification", "epoch", "seq", "last_seq",
+                "route", "source", "claim")
+
+
+def describe_event(event: Event) -> tuple[str, dict[str, Any]]:
+    """Return the service an event concerns and the event fields safe to show in an alert (no secrets)."""
+    kind = event.data.get("kind")
+    service = _SERVICE_BY_OBJECT.get(kind) if isinstance(kind, str) else None
+    action = event.data.get("action")
+    if service is None and isinstance(action, str) and action.startswith(("file.", "slot.")):
+        service = "files"
+    service = service or _SERVICE_BY_EVENT.get(event.kind, "gateway")
+    detail = {k: event.data[k] for k in _DETAIL_KEYS if isinstance(event.data.get(k), (str, int))}
+    return service, detail
+
+
 class Detector:
     def __init__(self, core: Core) -> None:
         self.core = core
@@ -95,9 +135,11 @@ class Detector:
             )
             self.core.apply_response(conn, r, alert_id)
         explanation = rule.explain(finding)
+        service, detail = describe_event(event)
         conn.execute(
             "INSERT INTO alerts (id, ts, rule_id, severity, status, user_id, device_id, session_id, summary, condition,"
-            " receipt_ids, response_id, incident_id, extra) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " receipt_ids, response_id, incident_id, extra, event_kind, service, event_detail)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 alert_id,
                 fmt(now),
@@ -113,6 +155,9 @@ class Detector:
                 response_id,
                 finding.incident_id,
                 json.dumps(finding.extra) if finding.extra else None,
+                event.kind,
+                service,
+                json.dumps(detail, sort_keys=True) if detail else None,
             ),
         )
         alert = self.core.alert_view(conn, alert_id)
@@ -120,7 +165,9 @@ class Detector:
         return alert
 
     def _publish(self, alert: dict[str, Any]) -> None:
-        line = json.dumps({"event": "alert", **alert}, separators=(",", ":"), sort_keys=True)
+        # Log lines keep "event":"alert" as their type; the observed security event goes under "security_event".
+        line = json.dumps({**alert, "event": "alert", "security_event": alert.get("event")}, separators=(",", ":"),
+                          sort_keys=True)
         self.core.log_line(line)
         try:
             with open(self.events_path, "a", encoding="utf-8") as fh:
