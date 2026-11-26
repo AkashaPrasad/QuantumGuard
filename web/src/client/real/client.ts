@@ -4,7 +4,7 @@ import type * as T from '../types'
 import { b64u, fromB64u } from '../../crypto/b64u'
 import { fromUtf8, utf8 } from '../../crypto/bytes'
 import { canon } from '../../crypto/canonical'
-import { messageStatement, openMessage, sealMessage, type MessageEnvelope } from '../../crypto/envelope'
+import { checkMessage, envelopeDigests, messageStatement, openMessage, sealMessage, type EnvelopeDigest, type MessageEnvelope } from '../../crypto/envelope'
 import { approvalStatement, changeHash, changeStatement, isChangeStatement, verifyPolicy } from '../../crypto/statements'
 import { idbDeviceStore, memoryDeviceStore, type DeriveFn, type DeviceStore } from '../../crypto/keystore'
 import { SUITE, context, verifyDual } from '../../crypto/suite'
@@ -38,12 +38,17 @@ export interface RealClientOptions {
   derive?: DeriveFn
 }
 
-/** spec/API.md 9: GET /messages returns only the envelope addressed to the calling device, without its device_id. */
+/**
+ * spec/API.md 9: GET /messages returns the calling device's envelope (without its device_id) plus the
+ * digest of every envelope of the message, which is what the sender signed (SUITE.md 11).
+ */
 interface WireMessage {
   message_id: string
   from: { user_id: string; name: string; device_id: string }
+  to_user_id: string
   sent_at: string
   envelope: { xwing_ct: string; ciphertext: string }
+  envelope_digests: EnvelopeDigest[]
   signature: string
 }
 
@@ -118,28 +123,21 @@ export function createRealClient(opts: RealClientOptions = {}): QgClient {
   }
 
   /**
-   * SUITE.md 11: open this device's envelope (AAD bound to this device and person). The sender's
-   * signature covers every envelope of the message, but the server returns only this device's, so it
-   * can be checked here only when this device was the sole addressee; otherwise `verified` is false.
+   * SUITE.md 11: check that the message is for this person, that this device's envelope is among the
+   * signed digests and that the sender's signature (sig_pk from the current verified directory) covers
+   * them; only then decrypt. A message that fails any check is listed with no text and verified false.
    */
   async function decryptMessage(m: WireMessage, dir: T.Directory): Promise<T.Message> {
     const { stored } = requireUnlocked(ctx)
-    const self = stored.device.device_id
-    const toUser = stored.device.user_id
-    let text = ''
-    let opened = false
-    try {
-      text = fromUtf8(await openMessage(ctx.keyring.kemSeed(), m.envelope, self, toUser, ctx.prov))
-      opened = true
-    } catch {
-      opened = false
-    }
-    let verified = false
+    const self = { device_id: stored.device.device_id, user_id: stored.device.user_id }
     const sender = findDevice(dir, m.from.device_id)
-    if (opened && sender && sender.user_id === m.from.user_id && m.signature) {
+    const senderPk = sender && sender.user_id === m.from.user_id ? fromB64u(sender.sig_pk, 1952) : null
+    let text = ''
+    let verified = false
+    if (await checkMessage(m, self, senderPk, ctx.prov)) {
       try {
-        const env: MessageEnvelope = { ciphertext: m.envelope.ciphertext, device_id: self, xwing_ct: m.envelope.xwing_ct }
-        verified = ctx.prov.mldsaVerify(fromB64u(sender.sig_pk, 1952), messageStatement(toUser, [env]), fromB64u(m.signature), context('message'))
+        text = fromUtf8(await openMessage(ctx.keyring.kemSeed(), m.envelope, self.device_id, self.user_id, ctx.prov))
+        verified = true
       } catch {
         verified = false
       }
@@ -362,7 +360,8 @@ export function createRealClient(opts: RealClientOptions = {}): QgClient {
       const envelopes: MessageEnvelope[] = []
       for (const d of devices) envelopes.push(await sealMessage(fromB64u(d.kem_pk, 1216), d.device_id, toUserId, utf8(text), ctx.prov))
       envelopes.sort((a, b) => (a.device_id < b.device_id ? -1 : a.device_id > b.device_id ? 1 : 0))
-      const signature = b64u(ctx.prov.mldsaSign(ctx.keyring.sigSeed(), messageStatement(toUserId, envelopes), context('message')))
+      const statement = messageStatement(toUserId, await envelopeDigests(envelopes, ctx.prov))
+      const signature = b64u(ctx.prov.mldsaSign(ctx.keyring.sigSeed(), statement, context('message')))
       return api<{ message_id: string }>('POST', '/api/v1/messages', { json: { to_user_id: toUserId, envelopes, signature } })
     },
   }

@@ -201,6 +201,6 @@ describe('envelope properties (local)', () => {
     expect(new TextDecoder().decode(await openMessage(kp.seed, wire, 'dev_x', 'usr_y'))).toBe('hi')
     await expect(openMessage(kp.seed, wire, 'dev_x', 'usr_z')).rejects.toThrow()
     await expect(openMessage(kp.seed, wire, 'dev_w', 'usr_y')).rejects.toThrow()
-    expect(new TextDecoder().decode(messageStatement('usr_y', [env]))).toContain('"to_user_id":"usr_y"')
+    expect(new TextDecoder().decode(messageStatement('usr_y', [{ device_id: 'dev_x', digest: 'AA' }]))).toContain('"to_user_id":"usr_y"')
   })
 })

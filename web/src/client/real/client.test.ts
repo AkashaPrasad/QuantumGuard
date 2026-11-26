@@ -8,7 +8,7 @@ import type * as T from '../types'
 import { b64u, fromB64u } from '../../crypto/b64u'
 import { concat, fromUtf8, toHex, utf8 } from '../../crypto/bytes'
 import { canon } from '../../crypto/canonical'
-import { messageStatement, verifyManifest, verifyShare, type Manifest, type MessageEnvelope, type ShareStatement } from '../../crypto/envelope'
+import { envelopeDigests, messageStatement, verifyManifest, verifyShare, type Manifest, type MessageEnvelope, type ShareStatement } from '../../crypto/envelope'
 import { memoryDeviceStore } from '../../crypto/keystore'
 import { deriveEnrolConfirmKey, deriveSessionKeys, enrolTranscript, macInput, sessionTranscript } from '../../crypto/protocol'
 import { getProvider } from '../../crypto/provider'
@@ -213,18 +213,19 @@ class FakeServer {
     }
     const me = this.certs.find((c) => c.device_id === s.device_id)!
     if (p === '/api/v1/messages' && method === 'POST') {
-      // backend/qg/api/messages.py: signature over the statement of every envelope, recipients active.
+      // backend/qg/api/messages.py: the server recomputes the digests and checks the signature over them.
       const b = json() as { to_user_id: string; envelopes: MessageEnvelope[]; signature: string }
-      if (!verifyDevice(fromB64u(me.sig_pk), 'message', messageStatement(b.to_user_id, b.envelopes), fromB64u(b.signature))) return err(400, 'QG_BAD_SIGNATURE')
+      if (!verifyDevice(fromB64u(me.sig_pk), 'message', messageStatement(b.to_user_id, await envelopeDigests(b.envelopes)), fromB64u(b.signature))) return err(400, 'QG_BAD_SIGNATURE')
       const message_id = this.id('msg')
       this.messages.push({ message_id, from: { user_id: me.user_id, name: me.user_id, device_id: me.device_id }, to_user_id: b.to_user_id, envelopes: b.envelopes, signature: b.signature })
       return ok({ message_id })
     }
     if (p === '/api/v1/messages' && method === 'GET') {
-      const items = this.messages.flatMap((m) => {
+      const items = []
+      for (const m of this.messages) {
         const e = m.envelopes.find((x) => x.device_id === s.device_id)
-        return e ? [{ message_id: m.message_id, from: m.from, sent_at: NOW, envelope: { xwing_ct: e.xwing_ct, ciphertext: e.ciphertext }, signature: m.signature }] : []
-      })
+        if (e) items.push({ message_id: m.message_id, from: m.from, to_user_id: m.to_user_id, sent_at: NOW, envelope: { xwing_ct: e.xwing_ct, ciphertext: e.ciphertext }, envelope_digests: await envelopeDigests(m.envelopes), signature: m.signature })
+      }
       return ok({ items, next_before: null })
     }
     if (p === '/api/v1/changes' && method === 'POST') {
@@ -350,19 +351,33 @@ describe('real client against a fake QG-1 server', () => {
     await expect(alice.protectFile({ file: makeFile(utf8('x'), 'x.txt'), classification: 'internal', recipient_user_ids: [] })).rejects.toMatchObject({ code: 'QG_STALE_EPOCH' })
   })
 
-  it('messages: the recipient decrypts the server-shaped envelope and checks the signature', async () => {
+  it('messages: each of two recipient devices checks the signed digests, then decrypts', async () => {
     const server = new FakeServer()
     const alice = createRealClient({ store: memoryDeviceStore(), fetch: server.fetch, derive: fastDerive })
     const bob = createRealClient({ store: memoryDeviceStore(), fetch: server.fetch, derive: fastDerive })
+    const bob2 = createRealClient({ store: memoryDeviceStore(), fetch: server.fetch, derive: fastDerive })
     await alice.enrol({ code: 'code-alice', device_name: 'A', passphrase: 'pw' })
-    await bob.enrol({ code: 'code-bob', device_name: 'B', passphrase: 'pw' })
+    await bob.enrol({ code: 'code-bob', device_name: 'B laptop', passphrase: 'pw' })
+    await bob2.enrol({ code: 'code-bob', device_name: 'B phone', passphrase: 'pw' })
     await alice.sendMessage('usr_bob', 'the freezer alarm is fixed')
-    const got = await bob.listMessages()
-    expect(got).toHaveLength(1)
-    expect(got[0]).toMatchObject({ text: 'the freezer alarm is fixed', verified: true, from: { user_id: 'usr_alice' } })
-    // a signature that does not cover the envelope is not marked verified
-    server.messages[0]!.signature = server.messages[0]!.signature.slice(0, -4) + 'AAAA'
-    expect((await bob.listMessages())[0]).toMatchObject({ text: 'the freezer alarm is fixed', verified: false })
+    expect(server.messages[0]!.envelopes).toHaveLength(2)
+    for (const c of [bob, bob2]) {
+      const got = await c.listMessages()
+      expect(got).toHaveLength(1)
+      expect(got[0]).toMatchObject({ text: 'the freezer alarm is fixed', verified: true, from: { user_id: 'usr_alice' } })
+    }
+    // refused before decrypting: a signature that does not cover the digests, or a message for someone else
+    const m = server.messages[0]!
+    const good = m.signature
+    m.signature = good.slice(0, -4) + 'AAAA'
+    expect((await bob.listMessages())[0]).toMatchObject({ text: '', verified: false })
+    m.signature = good
+    m.to_user_id = 'usr_alice'
+    expect((await bob2.listMessages())[0]).toMatchObject({ text: '', verified: false })
+    // an envelope swapped for another device's (its digest is not listed under this device) is refused
+    m.to_user_id = 'usr_bob'
+    m.envelopes = [m.envelopes[1]!, m.envelopes[0]!].map((e, i) => ({ ...e, device_id: m.envelopes[i]!.device_id }))
+    expect((await bob.listMessages())[0]).toMatchObject({ text: '', verified: false })
   })
 
   it('changes: request signs the statement, approval signs the recomputed change_hash', async () => {

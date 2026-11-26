@@ -1,13 +1,12 @@
-// Byte-for-byte checks of the change, approval, message and policy statements. The expected strings
-// were produced by the server's own code (backend/qg/api/changes.py, backend/qg/api/messages.py
-// `statement`, backend/qg/crypto/encoding.py `canon`), so a drift on either side fails here.
+// Byte-for-byte checks of the change, approval and policy statements (messages: messages.test.ts). The expected strings
+// were produced by the server's own code (backend/qg/api/changes.py,
+// backend/qg/crypto/encoding.py `canon`), so a drift on either side fails here.
 import { ed25519 } from '@noble/curves/ed25519.js'
 import { ml_dsa65 } from '@noble/post-quantum/ml-dsa.js'
 import { describe, expect, it } from 'vitest'
 import { b64u } from './b64u'
-import { concat, fromUtf8, utf8 } from './bytes'
+import { concat, fromUtf8 } from './bytes'
 import { canon } from './canonical'
-import { messageStatement, openMessage, sealMessage } from './envelope'
 import { getProvider } from './provider'
 import { approvalStatement, changeHash, changeStatement, isChangeStatement, verifyPolicy } from './statements'
 import { context, verifyDualBytes } from './suite'
@@ -50,30 +49,6 @@ describe('change statement (SUITE.md 10)', () => {
     const sig = prov.mldsaSign(kp.seed, canon(change), context('change'))
     expect(prov.mldsaVerify(kp.publicKey, canon(change), sig, context('change'))).toBe(true)
     expect(prov.mldsaVerify(kp.publicKey, canon({ ...change, role: 'admin' }), sig, context('change'))).toBe(false)
-  })
-})
-
-describe('message statement and envelope (SUITE.md 11)', () => {
-  it('statement bytes match the server (envelopes sorted by device_id)', () => {
-    const envs = [
-      { device_id: 'dev_BBBBBBBBBBBBBBBBBBBBBB', xwing_ct: 'Y3Qy', ciphertext: 'Ym9keTI' },
-      { device_id: 'dev_AAAAAAAAAAAAAAAAAAAAAA', xwing_ct: 'Y3Qx', ciphertext: 'Ym9keTE' },
-    ]
-    expect(fromUtf8(messageStatement('usr_CCCCCCCCCCCCCCCCCCCCCC', envs))).toBe(
-      '{"envelopes":[{"ciphertext":"Ym9keTE","device_id":"dev_AAAAAAAAAAAAAAAAAAAAAA","xwing_ct":"Y3Qx"},{"ciphertext":"Ym9keTI","device_id":"dev_BBBBBBBBBBBBBBBBBBBBBB","xwing_ct":"Y3Qy"}],"suite":"QG-1","to_user_id":"usr_CCCCCCCCCCCCCCCCCCCCCC"}',
-    )
-  })
-
-  it('a recipient with one device opens the server-shaped envelope and checks the signature', async () => {
-    const recipient = prov.xwingKeygen()
-    const sender = prov.mldsaKeygen()
-    const env = await sealMessage(recipient.publicKey, 'dev_R', 'usr_R', utf8('meet at 3'))
-    const signature = prov.mldsaSign(sender.seed, messageStatement('usr_R', [env]), context('message'))
-    // What GET /messages returns: no device_id in the envelope.
-    const wire = { xwing_ct: env.xwing_ct, ciphertext: env.ciphertext }
-    expect(fromUtf8(await openMessage(recipient.seed, wire, 'dev_R', 'usr_R'))).toBe('meet at 3')
-    const rebuilt = messageStatement('usr_R', [{ ...wire, device_id: 'dev_R' }])
-    expect(prov.mldsaVerify(sender.publicKey, rebuilt, signature, context('message'))).toBe(true)
   })
 })
 

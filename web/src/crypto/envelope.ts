@@ -282,11 +282,12 @@ export interface MessageEnvelope {
 }
 
 /** SUITE.md 3: message key = HKDF-SHA-384(ss, empty, "QG/v1/message", 32). */
-function messageKey(ss: Uint8Array, prov: CryptoProvider): Promise<Uint8Array> {
+export function messageKey(ss: Uint8Array, prov: CryptoProvider = getProvider()): Promise<Uint8Array> {
   return prov.hkdfSha384(ss, new Uint8Array(0), utf8(INFO.message), 32)
 }
 
-function messageAad(deviceId: string, toUserId: string): Uint8Array {
+/** SUITE.md 11: AAD of one envelope. */
+export function messageAad(deviceId: string, toUserId: string): Uint8Array {
   return canon({ device_id: deviceId, suite: SUITE, to_user_id: toUserId })
 }
 
@@ -324,12 +325,56 @@ export async function openMessage(kemSeed: Uint8Array, env: { xwing_ct: string; 
   }
 }
 
-/** SUITE.md 11: the signed message statement (envelopes sorted by device_id). */
-export function messageStatement(toUserId: string, envelopes: MessageEnvelope[]): Uint8Array {
-  const sorted = [...envelopes].sort((a, b) => (a.device_id < b.device_id ? -1 : a.device_id > b.device_id ? 1 : 0))
+export interface EnvelopeDigest {
+  device_id: string
+  digest: string
+}
+
+const byDevice = (a: { device_id: string }, b: { device_id: string }) => (a.device_id < b.device_id ? -1 : a.device_id > b.device_id ? 1 : 0)
+
+/** SUITE.md 11: envelope_digest = b64u(SHA-256(canon({ciphertext, device_id, xwing_ct}))) over the b64u strings as sent. */
+export async function envelopeDigest(e: MessageEnvelope, prov: CryptoProvider = getProvider()): Promise<string> {
+  return b64u(await prov.sha256(canon({ ciphertext: e.ciphertext, device_id: e.device_id, xwing_ct: e.xwing_ct })))
+}
+
+/** SUITE.md 11: one digest per envelope, sorted by device_id. */
+export async function envelopeDigests(envelopes: MessageEnvelope[], prov: CryptoProvider = getProvider()): Promise<EnvelopeDigest[]> {
+  const out: EnvelopeDigest[] = []
+  for (const e of envelopes) out.push({ device_id: e.device_id, digest: await envelopeDigest(e, prov) })
+  return out.sort(byDevice)
+}
+
+/** SUITE.md 11: the signed statement canon({envelope_digests sorted by device_id, suite, to_user_id}). */
+export function messageStatement(toUserId: string, digests: EnvelopeDigest[]): Uint8Array {
   return canon({
-    envelopes: sorted.map((e) => ({ ciphertext: e.ciphertext, device_id: e.device_id, xwing_ct: e.xwing_ct })),
+    envelope_digests: [...digests].sort(byDevice).map((d) => ({ device_id: d.device_id, digest: d.digest })),
     suite: SUITE,
     to_user_id: toUserId,
   })
+}
+
+export interface ReceivedMessage {
+  to_user_id: string
+  envelope: { xwing_ct: string; ciphertext: string }
+  envelope_digests: EnvelopeDigest[]
+  signature: string
+}
+
+/**
+ * SUITE.md 11, recipient side, before decrypting: the message is for this person, this device's
+ * envelope digest is listed under its device_id, and the sender's signature (under `senderSigPk` from
+ * the current verified directory; null when the sender is not in it) covers the statement rebuilt from
+ * `envelope_digests` and this device's own user id.
+ */
+export async function checkMessage(m: ReceivedMessage, self: { device_id: string; user_id: string }, senderSigPk: Uint8Array | null, prov: CryptoProvider = getProvider()): Promise<boolean> {
+  if (!senderSigPk || m.to_user_id !== self.user_id || !Array.isArray(m.envelope_digests) || !m.envelope || typeof m.signature !== 'string') return false
+  const ids = m.envelope_digests.map((d) => d?.device_id)
+  if (ids.some((d) => typeof d !== 'string') || new Set(ids).size !== ids.length) return false
+  const mine = await envelopeDigest({ ciphertext: m.envelope.ciphertext, device_id: self.device_id, xwing_ct: m.envelope.xwing_ct }, prov)
+  if (!m.envelope_digests.some((d) => d.device_id === self.device_id && d.digest === mine)) return false
+  try {
+    return prov.mldsaVerify(senderSigPk, messageStatement(self.user_id, m.envelope_digests), fromB64u(m.signature), context('message'))
+  } catch {
+    return false
+  }
 }
