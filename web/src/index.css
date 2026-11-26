@@ -1,0 +1,246 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Design tokens. Direction: "ledger" (see web/DESIGN.md).
+  Paper and ink, one ultramarine accent, square corners, hairline rules.
+  Components read these variables only; no raw colours in component code.
+*/
+@theme inline {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-heading: var(--font-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Meaning colours. Always paired with an icon or word, never colour alone. */
+  --color-allow: var(--allow);
+  --color-allow-soft: var(--allow-soft);
+  --color-deny: var(--deny);
+  --color-deny-soft: var(--deny-soft);
+  --color-caution: var(--caution);
+  --color-caution-soft: var(--caution-soft);
+  --color-rule: var(--rule);
+  --color-paper-raised: var(--paper-raised);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --ease-out-quiet: cubic-bezier(0.22, 0.8, 0.3, 1);
+  --shadow-lift: 0 1px 0 var(--rule), 0 8px 24px -12px rgb(22 26 34 / 0.18);
+
+  --animate-enter: enter 220ms var(--ease-out-quiet) both;
+  --animate-stamp: stamp 420ms var(--ease-out-quiet) both;
+  @keyframes enter {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes stamp {
+    0% { opacity: 0; transform: scale(1.35) rotate(-9deg); }
+    60% { opacity: 1; transform: scale(0.97) rotate(-4deg); }
+    100% { opacity: 1; transform: scale(1) rotate(-4deg); }
+  }
+}
+
+:root {
+  --radius: 0rem;
+
+  --background: #f5f3ec;
+  --foreground: #161a22;
+  --paper-raised: #fbfaf6;
+  --card: #fbfaf6;
+  --card-foreground: #161a22;
+  --popover: #fdfcf9;
+  --popover-foreground: #161a22;
+  --primary: #2438c7;
+  --primary-foreground: #ffffff;
+  --secondary: #e9e6dc;
+  --secondary-foreground: #161a22;
+  --muted: #ece9e0;
+  --muted-foreground: #565c6b;
+  --accent: #e3e6fa;
+  --accent-foreground: #1b2a99;
+  --destructive: #ad241c;
+  --destructive-foreground: #ffffff;
+  --border: #d8d4c7;
+  --rule: #c4bfb0;
+  --input: #b9b4a4;
+  --ring: #2438c7;
+
+  --allow: #17613e;
+  --allow-soft: #dcefe3;
+  --deny: #ad241c;
+  --deny-soft: #f6dcd8;
+  --caution: #7d4b00;
+  --caution-soft: #f5e6c6;
+
+  --chart-1: #2438c7;
+  --chart-2: #ad241c;
+  --chart-3: #17613e;
+  --chart-4: #7d4b00;
+  --chart-5: #565c6b;
+
+  --sidebar: #eeebe2;
+  --sidebar-foreground: #161a22;
+  --sidebar-primary: #2438c7;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e1ddd0;
+  --sidebar-accent-foreground: #161a22;
+  --sidebar-border: #d8d4c7;
+  --sidebar-ring: #2438c7;
+}
+
+.dark {
+  --background: #0e1116;
+  --foreground: #ece9df;
+  --paper-raised: #151920;
+  --card: #151920;
+  --card-foreground: #ece9df;
+  --popover: #181d25;
+  --popover-foreground: #ece9df;
+  --primary: #98a4ff;
+  --primary-foreground: #0e1116;
+  --secondary: #1e232c;
+  --secondary-foreground: #ece9df;
+  --muted: #1a1f27;
+  --muted-foreground: #a0a8b8;
+  --accent: #1e2550;
+  --accent-foreground: #ccd3ff;
+  --destructive: #ff8375;
+  --destructive-foreground: #0e1116;
+  --border: #2a303b;
+  --rule: #3a4150;
+  --input: #454d5c;
+  --ring: #98a4ff;
+
+  --allow: #62cf98;
+  --allow-soft: #11301f;
+  --deny: #ff8375;
+  --deny-soft: #3c1713;
+  --caution: #f0b45a;
+  --caution-soft: #38290b;
+
+  --chart-1: #98a4ff;
+  --chart-2: #ff8375;
+  --chart-3: #62cf98;
+  --chart-4: #f0b45a;
+  --chart-5: #a0a8b8;
+
+  --sidebar: #11151b;
+  --sidebar-foreground: #ece9df;
+  --sidebar-primary: #98a4ff;
+  --sidebar-primary-foreground: #0e1116;
+  --sidebar-accent: #1c212a;
+  --sidebar-accent-foreground: #ece9df;
+  --sidebar-border: #2a303b;
+  --sidebar-ring: #98a4ff;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  /* The component set is drawn at 12px; the root is raised so that
+     it lands at 13.5px with 36px controls, without touching each component. */
+  html {
+    font-size: 112.5%;
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01", "zero";
+  }
+  h1, h2, h3, h4 {
+    @apply font-heading font-semibold tracking-tight text-balance;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+  code, kbd, samp, .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* Small capital label used above values, table groups and receipt fields. */
+  .label-caps {
+    @apply font-mono text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-muted-foreground;
+  }
+  /* Identifier, hash, epoch: always mono, tabular, never wrapped mid-token unless asked. */
+  .data {
+    @apply font-mono tabular-nums;
+  }
+  /* The dotted rule that separates receipt sections. */
+  .rule-dotted {
+    border-top: 1px dashed var(--rule);
+  }
+  /* Faint lattice used behind empty states and the landing hero. */
+  .bg-lattice {
+    background-image: radial-gradient(var(--rule) 0.75px, transparent 0.75px);
+    background-size: 14px 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

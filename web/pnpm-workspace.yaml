@@ -1,0 +1,3 @@
+# Releases younger than 14 days are not installed (minutes).
+minimumReleaseAge: 20160
+saveExact: true
