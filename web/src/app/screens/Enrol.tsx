@@ -119,7 +119,7 @@ export default function Enrol() {
     setError(null)
     setProgress(null)
     try {
-      const device = await client.enrol({ code: code.trim().toUpperCase(), device_name: deviceName.trim(), passphrase }, setProgress)
+      const device = await client.enrol({ code: code.trim(), device_name: deviceName.trim(), passphrase }, setProgress)
       setPassphrase('')
       setConfirm('')
       setProgress('session_started')
@@ -209,7 +209,7 @@ export default function Enrol() {
               id="enrol-code"
               data-testid="enrol-code"
               value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              onChange={(e) => setCode(e.target.value)}
               autoComplete="one-time-code"
               autoCapitalize="characters"
               spellCheck={false}

@@ -138,6 +138,11 @@ File names and sizes are metadata the server can read; contents and file keys ar
 
 `POST /enroll/finish` `{enroll_id, signature, key_confirm}` -> `{certificate, directory}`
 
+Enrolment codes are made to be read aloud and typed: 16 characters of Crockford base32
+(`0-9 A-Z` without `I L O U`), shown in four groups, for example `K7QM-2XVD-9RTA-HB4N` (80 bits).
+The server normalises what it receives before hashing: trim, upper-case, drop hyphens and spaces,
+read `O` as `0` and `I` or `L` as `1`. Clients send what the person typed.
+
 | Failure | Code and reason |
 |---|---|
 | Code unknown, used or expired | `QG_INVALID_INPUT` / `invite_invalid` (one answer for all three) |
