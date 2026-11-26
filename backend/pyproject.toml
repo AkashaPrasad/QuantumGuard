@@ -1,0 +1,54 @@
+[project]
+name = "quantumguard"
+version = "0.1.0"
+description = "QuantumGuard server and qg client: post-quantum file protection with device revocation and verifiable evidence"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+dependencies = [
+    "argon2-cffi==25.1.0",
+    "cryptography==50.0.2",
+    "fastapi==0.162.5",
+    "httpx==0.28.1",
+    "pydantic==2.14.3",
+    "pyyaml==6.0.3",
+    "structlog==26.1.0",
+    "typer==0.29.1",
+    "uvicorn[standard]==0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "bandit==1.9.4",
+    "hypothesis==6.170.15",
+    "mypy==2.4.1",
+    "pip-audit==2.10.1",
+    "pytest==9.2.0",
+    "pytest-xdist==3.8.0",
+    "ruff==0.17.4",
+    "schemathesis==4.33.2",
+]
+
+[tool.uv]
+# Code lives in backend/qg (server) and cli/qg (client); both are on PYTHONPATH via the Makefile.
+package = false
+# Never adopt a release newer than 14 days before the build started.
+exclude-newer = "2026-11-12T00:00:00Z"
+
+[tool.pytest.ini_options]
+pythonpath = ["backend", "cli"]
+testpaths = ["tests"]
+addopts = "-q -p no:cacheprovider"
+markers = ["slow: long-running tests"]
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "S", "UP"]
+ignore = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true

@@ -1,0 +1,120 @@
+# QuantumGuard policy bundle. Default deny: an action is allowed only when an allow rule matches and no
+# deny rule matches. Conditions are facts computed by the server for the request (see engine.py).
+# Changing this file changes policy_bundle_hash; the server must re-sign it (python -m qg.admin policy-sign).
+suite: QG-1
+version: 1
+rules:
+  - id: D-USER-NOT-ACTIVE
+    effect: deny
+    description: People who are disabled cannot act.
+    roles: ["*"]
+    actions: ["*"]
+    conditions: {user_active: false}
+  - id: D-DEVICE-NOT-ACTIVE
+    effect: deny
+    description: Only active devices act.
+    roles: ["*"]
+    actions: ["*"]
+    conditions: {device_active: false}
+  - id: D-DECOY
+    effect: deny
+    description: Decoy objects are never released.
+    roles: ["*"]
+    actions: [slot.release, chunk.read, file.share, file.read, file.version, file.commit, file.recover]
+    conditions: {decoy: true}
+  - id: D-SELF-APPROVAL
+    effect: deny
+    description: Nobody approves a change they requested or that targets them.
+    roles: ["*"]
+    actions: [change.approve]
+    conditions: {self_approval: true}
+
+  - id: P-SELF-SERVICE
+    effect: allow
+    description: Everyone can read policy, their devices, messages, proofs and their own evidence, and end their session.
+    roles: [employee, admin, operator, auditor]
+    actions: [policy.read, device.list, session.end, message.list, message.send, proof.read, receipt.list, receipt.read, rekey.list, file.list, incident.list, invite.list]
+  - id: P-INVITE-SELF
+    effect: allow
+    description: Anyone can invite a new device for themselves.
+    roles: [employee, admin, operator, auditor]
+    actions: [invite.create, invite.cancel]
+    conditions: {self: true}
+  - id: P-ADMIN-PEOPLE
+    effect: allow
+    description: Admins invite people and devices and request role changes.
+    roles: [admin]
+    actions: [invite.create, invite.cancel, change.request, change.reject, change.list, overview.read, service.list, service.create, service.rotate, device.list_all, file.recover]
+  - id: P-APPROVE-ADMIN
+    effect: allow
+    description: Admins approve changes requested by someone else.
+    roles: [admin]
+    actions: [change.approve]
+  - id: P-APPROVE-RECOVERY-OPERATOR
+    effect: allow
+    description: Operators may approve recovery releases requested by someone else.
+    roles: [operator]
+    actions: [change.approve]
+    conditions: {change_type: recovery_release}
+  - id: P-DEVICE-OWNER
+    effect: allow
+    description: Owners rename their own devices and report them lost.
+    roles: [employee, admin, operator, auditor]
+    actions: [device.rename, device.report_lost]
+    conditions: {owner: true}
+  - id: P-OPERATOR
+    effect: allow
+    description: Operators revoke devices, manage incidents, alerts, responses and signals.
+    roles: [operator]
+    actions: [device.revoke, device.list_all, incident.read_all, incident.bundle, incident.close, alert.list, alert.read, alert.ack, response.lift, signal.send, signal.list, overview.read, change.list, service.list, receipt.read_all]
+  - id: P-OPERATOR-EMERGENCY-ROTATE
+    effect: allow
+    description: Operators rotate a service key in an emergency.
+    roles: [operator]
+    actions: [service.rotate]
+    conditions: {emergency: true}
+  - id: P-AUDITOR
+    effect: allow
+    description: Auditors read evidence, incidents, alerts and changes; they change nothing.
+    roles: [auditor]
+    actions: [device.list_all, incident.read_all, incident.bundle, alert.list, alert.read, signal.list, overview.read, change.list, service.list, receipt.read_all]
+  - id: P-INCIDENT-OWN
+    effect: allow
+    description: People see incidents about their own devices.
+    roles: [employee, admin, operator, auditor]
+    actions: [incident.read]
+    conditions: {owner: true}
+  - id: P-FILE-CREATE
+    effect: allow
+    description: Employees, admins and operators protect files.
+    roles: [employee, admin, operator]
+    actions: [file.create]
+  - id: P-FILE-OWNER
+    effect: allow
+    description: The owner manages their file.
+    roles: [employee, admin, operator, auditor]
+    actions: [file.read, file.delete, file.version, chunk.write, file.commit, file.unshare]
+    conditions: {owner: true}
+  - id: P-FILE-HOLDER
+    effect: allow
+    description: A device holding a slot for the current version opens, shares and re-keys the file.
+    roles: [employee, admin, operator, auditor]
+    actions: [file.read, slot.release, chunk.read, file.share, file.version, chunk.write, file.commit]
+    conditions: {has_slot: true}
+  - id: P-RECIPIENT
+    effect: allow
+    description: A recipient device must be active and belong to an active person allowed to hold this classification.
+    roles: [employee, admin, operator]
+    actions: [file.receive]
+    conditions: {device_active: true, user_active: true}
+  - id: P-RECIPIENT-INTERNAL
+    effect: allow
+    description: Auditors may receive internal files only.
+    roles: [auditor]
+    actions: [file.receive]
+    conditions: {device_active: true, user_active: true, classification: [internal]}
+  - id: P-SIGNAL-SERVICE
+    effect: allow
+    description: Service identities deliver security signals.
+    roles: [service]
+    actions: [signal.send]

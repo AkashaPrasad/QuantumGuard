@@ -1,0 +1,188 @@
+{
+ "description": "spec/SUITE.md section 2.2. For valid cases canon(input) must equal output_hex exactly. Invalid cases are JSON texts that a strict parser plus canonicaliser must reject.",
+ "valid": [
+  {
+   "input": {},
+   "output": "{}",
+   "output_hex": "7b7d"
+  },
+  {
+   "input": [],
+   "output": "[]",
+   "output_hex": "5b5d"
+  },
+  {
+   "input": {
+    "b": 1,
+    "a": 2
+   },
+   "output": "{\"a\":2,\"b\":1}",
+   "output_hex": "7b2261223a322c2262223a317d"
+  },
+  {
+   "input": {
+    "suite": "QG-1",
+    "z": [
+     3,
+     2,
+     1
+    ],
+    "a": {
+     "y": null,
+     "x": true,
+     "w": false
+    }
+   },
+   "output": "{\"a\":{\"w\":false,\"x\":true,\"y\":null},\"suite\":\"QG-1\",\"z\":[3,2,1]}",
+   "output_hex": "7b2261223a7b2277223a66616c73652c2278223a747275652c2279223a6e756c6c7d2c227375697465223a2251472d31222c227a223a5b332c322c315d7d"
+  },
+  {
+   "input": {
+    "n": -42,
+    "big": 9007199254740991,
+    "neg": -9007199254740991,
+    "zero": 0
+   },
+   "output": "{\"big\":9007199254740991,\"n\":-42,\"neg\":-9007199254740991,\"zero\":0}",
+   "output_hex": "7b22626967223a393030373139393235343734303939312c226e223a2d34322c226e6567223a2d393030373139393235343734303939312c227a65726f223a307d"
+  },
+  {
+   "input": {
+    "s": "quote\" backslash\\ slash/ tab\t nl\n cr\r bs\b ff\f"
+   },
+   "output": "{\"s\":\"quote\\\" backslash\\\\ slash/ tab\\t nl\\n cr\\r bs\\b ff\\f\"}",
+   "output_hex": "7b2273223a2271756f74655c22206261636b736c6173685c5c20736c6173682f207461625c74206e6c5c6e2063725c722062735c622066665c66227d"
+  },
+  {
+   "input": {
+    "s": "ctl\u0001\u001f del"
+   },
+   "output": "{\"s\":\"ctl\\u0001\\u001f del\"}",
+   "output_hex": "7b2273223a2263746c5c75303030315c75303031662064656c7f227d"
+  },
+  {
+   "input": {
+    "s": "Grüße, 東京, emoji 🔐"
+   },
+   "output": "{\"s\":\"Grüße, 東京, emoji 🔐\"}",
+   "output_hex": "7b2273223a224772c3bcc39f652c20e69db1e4baac2c20656d6f6a6920f09f9490227d"
+  },
+  {
+   "input": {
+    "A": 1,
+    "_": 2,
+    "a": 3,
+    "Z": 4,
+    "0": 5,
+    "-": 6
+   },
+   "output": "{\"-\":6,\"0\":5,\"A\":1,\"Z\":4,\"_\":2,\"a\":3}",
+   "output_hex": "7b222d223a362c2230223a352c2241223a312c225a223a342c225f223a322c2261223a337d"
+  },
+  {
+   "input": [
+    {
+     "b": [
+      1,
+      {
+       "d": 1,
+       "c": 2
+      }
+     ]
+    },
+    "x"
+   ],
+   "output": "[{\"b\":[1,{\"c\":2,\"d\":1}]},\"x\"]",
+   "output_hex": "5b7b2262223a5b312c7b2263223a322c2264223a317d5d7d2c2278225d"
+  }
+ ],
+ "invalid": [
+  {
+   "json": "1.0",
+   "why": "float"
+  },
+  {
+   "json": "1e3",
+   "why": "exponent"
+  },
+  {
+   "json": "{\"a\":0.5}",
+   "why": "float member"
+  },
+  {
+   "json": "-0",
+   "why": "negative zero"
+  },
+  {
+   "json": "9007199254740992",
+   "why": "integer above 2^53-1"
+  },
+  {
+   "json": "-9007199254740992",
+   "why": "integer below -(2^53-1)"
+  },
+  {
+   "json": "{\"a\":1,\"a\":2}",
+   "why": "duplicate key"
+  },
+  {
+   "json": "{\"é\":1}",
+   "why": "non-ASCII key"
+  },
+  {
+   "json": "\"\\ud800\"",
+   "why": "lone surrogate"
+  },
+  {
+   "json": "NaN",
+   "why": "non-finite"
+  }
+ ],
+ "b64u": {
+  "valid": [
+   {
+    "hex": "",
+    "b64u": ""
+   },
+   {
+    "hex": "66",
+    "b64u": "Zg"
+   },
+   {
+    "hex": "666f",
+    "b64u": "Zm8"
+   },
+   {
+    "hex": "666f6f",
+    "b64u": "Zm9v"
+   },
+   {
+    "hex": "666f6f62",
+    "b64u": "Zm9vYg"
+   },
+   {
+    "hex": "666f6f6261",
+    "b64u": "Zm9vYmE"
+   },
+   {
+    "hex": "666f6f626172",
+    "b64u": "Zm9vYmFy"
+   },
+   {
+    "hex": "fbffbf",
+    "b64u": "-_-_"
+   }
+  ],
+  "invalid": [
+   "Zg==",
+   "Zg=",
+   "Zh",
+   "Z",
+   "Zm9v+",
+   "Zm9v/",
+   "Zm 9v",
+   "Zm9vYg=",
+   "+/8"
+  ]
+ }
+}
