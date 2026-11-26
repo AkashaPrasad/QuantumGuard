@@ -1,0 +1,49 @@
+rules:
+  - id: qg-no-eval
+    languages: [python, javascript, typescript]
+    severity: ERROR
+    message: Dynamic eval is forbidden in the security boundary.
+    pattern: eval(...)
+  - id: qg-no-pickle-load
+    languages: [python]
+    severity: ERROR
+    message: Do not deserialize untrusted pickle objects.
+    pattern-either:
+      - pattern: pickle.loads(...)
+      - pattern: pickle.load(...)
+  - id: qg-no-shell-subprocess
+    languages: [python]
+    severity: ERROR
+    message: Pass an argument vector and keep shell=False.
+    pattern: subprocess.$FUNC(..., shell=True, ...)
+  - id: qg-no-disabled-tls
+    languages: [python]
+    severity: ERROR
+    message: TLS certificate verification must remain enabled.
+    pattern-either:
+      - pattern: requests.$FUNC(..., verify=False, ...)
+      - pattern: httpx.$FUNC(..., verify=False, ...)
+      - pattern: ssl._create_unverified_context(...)
+  - id: qg-no-weak-random-for-keys
+    languages: [python]
+    severity: ERROR
+    message: Product randomness must use secrets or the vetted crypto provider.
+    paths:
+      include: [backend, cli]
+    pattern-either:
+      - pattern: random.random(...)
+      - pattern: random.randbytes(...)
+      - pattern: random.getrandbits(...)
+  - id: qg-no-wildcard-cors
+    languages: [python]
+    severity: ERROR
+    message: API origins must be explicit.
+    pattern: $APP.add_middleware(..., allow_origins=["*"], ...)
+  - id: qg-no-secret-logging
+    languages: [python]
+    severity: ERROR
+    message: Never log credential or key objects.
+    pattern-either:
+      - pattern: $LOG.$METHOD(..., $OBJ.private_key, ...)
+      - pattern: $LOG.$METHOD(..., $OBJ.passphrase, ...)
+      - pattern: $LOG.$METHOD(..., $OBJ.session_key, ...)

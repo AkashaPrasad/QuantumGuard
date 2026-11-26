@@ -1,0 +1,10 @@
+title = "QuantumGuard secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "qg-private-key"
+description = "PEM private keys must never be committed"
+regex = '''-----BEGIN (?:RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY-----'''
+keywords = ["PRIVATE KEY"]

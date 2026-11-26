@@ -1,0 +1,22 @@
+# Resolve with scripts/pin_images.sh only when registry traffic is authorized.
+# Every *_IMAGE must be an immutable digest reference; empty values fail closed.
+NODE_REF=docker.io/library/node:22-bookworm-slim
+NODE_IMAGE=docker.io/library/node:22-bookworm-slim@sha256:be979e5523c76fa4d5ca4ebd3099078f220aa47ec39c48ad5b5df9314debd6eb
+PYTHON_REF=docker.io/library/python:3.12-slim-bookworm
+PYTHON_IMAGE=docker.io/library/python:3.12-slim-bookworm@sha256:44cf1793efa7c7a476bb0f2cff81443f4a072c90c1cb127e2924933daa3e8c64
+UV_REF=ghcr.io/astral-sh/uv:0.9.13
+UV_IMAGE=ghcr.io/astral-sh/uv:0.9.13@sha256:f07d1bf7b1fb4b983eed2b31320e25a2a76625bdf83d5ff0208fe105d4d8d2f5
+CADDY_REF=docker.io/library/caddy:2.10.2-alpine
+CADDY_IMAGE=docker.io/library/caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+GITLEAKS_REF=ghcr.io/gitleaks/gitleaks:v8.24.2
+GITLEAKS_IMAGE=ghcr.io/gitleaks/gitleaks:v8.24.2@sha256:b5918eb91b8d2473cec722f066abb4352e4ffdc4ec9f4283ec143aba9ec9ebc4
+SEMGREP_REF=semgrep/semgrep:1.116.0
+SEMGREP_IMAGE=semgrep/semgrep:1.116.0@sha256:1844697a3d8b80166e2eaadb93f189a9372e6c8dc025cb14d9400f06e7475261
+TRIVY_REF=aquasec/trivy:0.61.0
+TRIVY_IMAGE=aquasec/trivy:0.61.0@sha256:6967db29ce5294d054121e94b3cb1262de858af63b4547bb1bade66a4306f2e4
+HADOLINT_REF=hadolint/hadolint:2.12.0
+HADOLINT_IMAGE=hadolint/hadolint:2.12.0@sha256:30a8fd2e785ab6176eed53f74769e04f125afb2f74a6c52aef7d463583b6d45e
+ZAP_REF=ghcr.io/zaproxy/zaproxy:2.16.0
+ZAP_IMAGE=ghcr.io/zaproxy/zaproxy:2.16.0@sha256:391f66efa53b30de40d4a1c6e28146477263552fc828bc7613c9cd11a2949908
+DOCKER_REF=docker.io/library/docker:28.0.4-dind
+DOCKER_IMAGE=docker.io/library/docker:28.0.4-dind@sha256:4de6a5668da5d138bf9c18b29d2702e43c8773daee085087ba4fac61a6d34b7f
