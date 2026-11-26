@@ -37,6 +37,7 @@ Every message says what happened, why, and what to do next, in one or two senten
 | QG_BAD_MAC / QG_REPLAY | The session was ended to be safe | A request arrived out of order or altered. Unlock again; if this repeats, tell an operator. |
 | QG_DENY_REVOKED | Access removed from this device | It was reported lost or revoked. If that is a mistake, contact your operator. |
 | QG_DENY_POLICY (self_approval) | A second person has to approve this | You requested it or it is about you. Ask another admin to approve. |
+| QG_DENY_POLICY (self_lift) | Someone else has to lift this | The response contains you or this device. Another operator, or an admin, can lift it. |
 | QG_DENY_POLICY (role_required) | Not available for your role | This action needs a role you do not hold. |
 | QG_DENY_POLICY (no_slot, other) | You do not have access to this | The policy did not allow it. The decision is recorded; ask the file owner or an admin if you need access. |
 | QG_QUARANTINED | Access is paused for now | An automatic safety response is active. An operator can lift it; the time it ends is shown when known. |

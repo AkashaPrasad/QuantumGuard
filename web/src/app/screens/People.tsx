@@ -45,14 +45,14 @@ function CopyButton({ value }: { value: string }) {
   )
 }
 
-function RoleSelect({ id, value, onChange, testId }: { id: string; value: Role; onChange: (r: Role) => void; testId: string }) {
+function RoleSelect({ id, value, onChange, testId, roles = ROLE_ORDER }: { id: string; value: Role; onChange: (r: Role) => void; testId: string; roles?: readonly Role[] }) {
   return (
     <NativeSelect
       id={id}
       data-testid={testId}
       value={value}
       onValueChange={(v) => onChange(v as Role)}
-      options={ROLE_ORDER.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
+      options={roles.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
     />
   )
 }
@@ -173,19 +173,22 @@ function ChangeRoleDialog({ person, onClose }: { person: DirectoryUser; onClose:
   const toast = useToast()
   const online = useOnline()
   const [kind, setKind] = useState<'role_grant' | 'role_revoke'>('role_grant')
-  const [role, setRole] = useState<Role>('auditor')
+  // Granting offers only roles the person does not hold; removing only roles they hold.
+  const choices = ROLE_ORDER.filter((r) => (kind === 'role_grant') !== person.roles.includes(r))
+  const [picked, setPicked] = useState<Role | null>(null)
+  const role: Role | null = picked && choices.includes(picked) ? picked : (choices[0] ?? null)
   const [reason, setReason] = useState('')
   const [pendingId, setPendingId] = useState<string | null>(null)
   const request = useMutation({
-    mutationFn: () => client.requestChange({ type: kind, target_user_id: person.user_id, role, reason: reason.trim() }),
-    onSuccess: (c) => {
+    mutationFn: (r: Role) => client.requestChange({ type: kind, target_user_id: person.user_id, role: r, reason: reason.trim() }),
+    onSuccess: (c, r) => {
       void qc.invalidateQueries()
-      toast({ tone: 'done', title: c.status === 'pending' ? 'Change requested' : 'Change applied', body: `${person.name}: ${ROLE_LABEL[role]}` })
+      toast({ tone: 'done', title: c.status === 'pending' ? 'Change requested' : 'Change applied', body: `${person.name}: ${ROLE_LABEL[r]}` })
       if (c.status === 'pending') setPendingId(c.id)
       else onClose()
     },
   })
-  const canSubmit = online && !request.isPending && reason.trim().length >= 3
+  const canSubmit = online && !request.isPending && role !== null && reason.trim().length >= 3
   return (
     <Dialog open onOpenChange={(o) => (!o && !request.isPending ? onClose() : null)}>
       <DialogContent className="sm:max-w-lg">
@@ -212,7 +215,7 @@ function ChangeRoleDialog({ person, onClose }: { person: DirectoryUser; onClose:
           <form
             onSubmit={(e) => {
               e.preventDefault()
-              if (canSubmit) request.mutate()
+              if (canSubmit && role) request.mutate(role)
             }}
           >
             <DialogHeader>
@@ -243,13 +246,19 @@ function ChangeRoleDialog({ person, onClose }: { person: DirectoryUser; onClose:
             </fieldset>
             <div className="mt-4 flex flex-col gap-1.5">
               <Label htmlFor="change-role">Role</Label>
-              <RoleSelect id="change-role" value={role} onChange={setRole} testId="change-role" />
+              {role ? (
+                <RoleSelect id="change-role" value={role} onChange={setPicked} testId="change-role" roles={choices} />
+              ) : (
+                <p className="text-sm text-muted-foreground" data-testid="change-role-none">
+                  {kind === 'role_grant' ? `${person.name} already holds every role.` : `${person.name} holds no role to remove.`}
+                </p>
+              )}
             </div>
             <div className="mt-4 flex flex-col gap-1.5">
               <Label htmlFor="change-reason">Reason</Label>
               <Textarea id="change-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} rows={3} data-testid="change-reason" />
             </div>
-            {request.error ? <ErrorNotice error={request.error} className="mt-4" onRetry={() => request.mutate()} /> : null}
+            {request.error ? <ErrorNotice error={request.error} className="mt-4" onRetry={role ? () => request.mutate(role) : undefined} /> : null}
             {!online ? <p className="mt-4 border-l-2 border-caution pl-3 text-sm">You are offline. Nothing is sent until the connection returns.</p> : null}
             <DialogFooter className="mt-5">
               <Button type="button" variant="outline" onClick={onClose} disabled={request.isPending}>

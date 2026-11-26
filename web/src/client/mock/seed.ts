@@ -592,9 +592,9 @@ export function buildSeed(now: number): Seed {
   }))
 
   const signals: T.Signal[] = [
-    { signal_id: idOf('sig', makeRng('signal:1')), received_at: iso(now - 7 * HOUR), event_type: 'device-compliance-change', subject: "Daniel's Dell XPS", duplicate: false },
-    { signal_id: idOf('sig', makeRng('signal:2')), received_at: iso(now - 7 * HOUR + 4_000), event_type: 'device-compliance-change', subject: "Daniel's Dell XPS", duplicate: true },
-    { signal_id: idOf('sig', makeRng('signal:3')), received_at: iso(now - 26 * HOUR), event_type: 'credential-change', subject: 'Plate reader gateway', duplicate: false },
+    { signal_id: idOf('sig', makeRng('signal:1')), jti: 'mdm-7f3a', iss: 'https://mdm.example', received_at: iso(now - 7 * HOUR), event_type: 'https://schemas.openid.net/secevent/caep/event-type/device-compliance-change', subject_id: dev('daniel1').device_id, event_timestamp: Math.floor((now - 7 * HOUR) / 1000), applied: true },
+    { signal_id: idOf('sig', makeRng('signal:2')), jti: 'mdm-7f3a', iss: 'https://mdm.example', received_at: iso(now - 7 * HOUR + 4_000), event_type: 'https://schemas.openid.net/secevent/caep/event-type/device-compliance-change', subject_id: dev('daniel1').device_id, event_timestamp: Math.floor((now - 7 * HOUR) / 1000), applied: false },
+    { signal_id: idOf('sig', makeRng('signal:3')), jti: 'idp-11c2', iss: 'https://idp.example', received_at: iso(now - 26 * HOUR), event_type: 'https://schemas.openid.net/secevent/caep/event-type/credential-change', subject_id: dev('daniel1').device_id, event_timestamp: Math.floor((now - 26 * HOUR) / 1000), applied: true },
   ]
 
   const messages = [

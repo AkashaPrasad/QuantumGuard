@@ -5,6 +5,7 @@ import { b64u, fromB64u } from '../../crypto/b64u'
 import { fromUtf8, utf8 } from '../../crypto/bytes'
 import { canon } from '../../crypto/canonical'
 import { messageStatement, openMessage, sealMessage, type MessageEnvelope } from '../../crypto/envelope'
+import { approvalStatement, changeHash, changeStatement, isChangeStatement, verifyPolicy } from '../../crypto/statements'
 import { idbDeviceStore, memoryDeviceStore, type DeriveFn, type DeviceStore } from '../../crypto/keystore'
 import { SUITE, context, verifyDual } from '../../crypto/suite'
 import { verifyProofBundle, verifyReceiptProof } from '../../crypto/verify'
@@ -22,6 +23,7 @@ import {
   seg,
   serverKeys,
   setState,
+  signerKey,
   touch,
   trustedDirectory,
   type Ctx,
@@ -36,14 +38,13 @@ export interface RealClientOptions {
   derive?: DeriveFn
 }
 
+/** spec/API.md 9: GET /messages returns only the envelope addressed to the calling device, without its device_id. */
 interface WireMessage {
   message_id: string
   from: { user_id: string; name: string; device_id: string }
   sent_at: string
-  to_user_id?: string
-  envelope?: MessageEnvelope
-  envelopes?: MessageEnvelope[]
-  signature?: string
+  envelope: { xwing_ct: string; ciphertext: string }
+  signature: string
 }
 
 function defaultStore(): DeviceStore {
@@ -67,16 +68,30 @@ function lockLocal(ctx: Ctx): void {
   if (ctx.stored && ctx.state.kind === 'unlocked') setState(ctx, { kind: 'locked', device: localDevice(ctx.stored) })
 }
 
-type WireChange = T.Change & { change?: unknown; change_hash?: string }
-
 /**
- * SUITE.md 10: change_hash = b64u(SHA-256(canon(change))) needs the exact signed change statement.
- * spec/API.md's Change view omits it, so this reads `change` (preferred) or `change_hash` if present.
+ * SUITE.md 10: before approving, check that `change` is a well-formed statement describing the change
+ * shown (type, target, role, file), that `change_hash` is SHA-256 of its canonical bytes, and that the
+ * requester's signature covers it (a change the server created for an invite carries signature "").
  */
-async function changeHash(ctx: Ctx, c: WireChange): Promise<string> {
-  if (c.change && typeof c.change === 'object') return b64u(await ctx.prov.sha256(canon(c.change)))
-  if (typeof c.change_hash === 'string') return c.change_hash
-  throw integrity('change_statement_unavailable', 'The server did not send the signed change statement, so it cannot be approved here.')
+async function checkedChangeHash(ctx: Ctx, c: T.Change): Promise<string> {
+  const st = c.change
+  if (!isChangeStatement(st)) throw integrity('change_statement_unavailable', 'The server did not send the signed change statement, so it cannot be approved here.')
+  if (st.type !== c.type || st.target_user_id !== c.target_user.user_id || st.role !== c.role || st.file_id !== c.file_id) {
+    throw integrity('change_mismatch', 'The signed change does not match the change shown.')
+  }
+  const hash = await changeHash(st, ctx.prov)
+  if (c.change_hash !== undefined && c.change_hash !== hash) throw integrity('change_hash')
+  if (c.signature) {
+    const pk = await signerKey(ctx, c.requested_by.device_id, st.directory_epoch)
+    let ok = false
+    try {
+      ok = ctx.prov.mldsaVerify(pk, canon(st), fromB64u(c.signature), context('change'))
+    } catch {
+      ok = false
+    }
+    if (!ok) throw integrity('change_signature', 'The requester’s signature on this change did not verify.')
+  }
+  return hash
 }
 
 export function createRealClient(opts: RealClientOptions = {}): QgClient {
@@ -102,26 +117,29 @@ export function createRealClient(opts: RealClientOptions = {}): QgClient {
     return b64u(ctx.prov.mldsaSign(ctx.keyring.sigSeed(), canon(statement), context('change')))
   }
 
+  /**
+   * SUITE.md 11: open this device's envelope (AAD bound to this device and person). The sender's
+   * signature covers every envelope of the message, but the server returns only this device's, so it
+   * can be checked here only when this device was the sole addressee; otherwise `verified` is false.
+   */
   async function decryptMessage(m: WireMessage, dir: T.Directory): Promise<T.Message> {
     const { stored } = requireUnlocked(ctx)
     const self = stored.device.device_id
-    const toUser = m.to_user_id ?? stored.device.user_id
-    const env = m.envelope ?? m.envelopes?.find((e) => e.device_id === self)
+    const toUser = stored.device.user_id
     let text = ''
     let opened = false
-    if (env) {
-      try {
-        text = fromUtf8(await openMessage(ctx.keyring.kemSeed(), env, toUser, ctx.prov))
-        opened = true
-      } catch {
-        opened = false
-      }
+    try {
+      text = fromUtf8(await openMessage(ctx.keyring.kemSeed(), m.envelope, self, toUser, ctx.prov))
+      opened = true
+    } catch {
+      opened = false
     }
     let verified = false
     const sender = findDevice(dir, m.from.device_id)
-    if (opened && sender && m.envelopes && m.signature) {
+    if (opened && sender && sender.user_id === m.from.user_id && m.signature) {
       try {
-        verified = ctx.prov.mldsaVerify(fromB64u(sender.sig_pk, 1952), messageStatement(toUser, m.envelopes), fromB64u(m.signature), context('message'))
+        const env: MessageEnvelope = { ciphertext: m.envelope.ciphertext, device_id: self, xwing_ct: m.envelope.xwing_ct }
+        verified = ctx.prov.mldsaVerify(fromB64u(sender.sig_pk, 1952), messageStatement(toUser, [env]), fromB64u(m.signature), context('message'))
       } catch {
         verified = false
       }
@@ -259,10 +277,7 @@ export function createRealClient(opts: RealClientOptions = {}): QgClient {
       await ready
       requireUnlocked(ctx)
       const post = async (dir: T.Directory) => {
-        const change = {
-          directory_epoch: dir.epoch, file_id: input.file_id ?? null, reason: input.reason, role: input.role ?? null,
-          suite: SUITE, target_user_id: input.target_user_id, type: input.type,
-        }
+        const change = changeStatement({ ...input, directory_epoch: dir.epoch })
         return api<T.Change>('POST', '/api/v1/changes', { json: { change, signature: signChange(change) } })
       }
       try {
@@ -273,9 +288,9 @@ export function createRealClient(opts: RealClientOptions = {}): QgClient {
       }
     },
     async approveChange(id) {
-      const c = items<WireChange>(await api('GET', '/api/v1/changes', { query: { status: 'pending' } })).find((x) => x.id === id)
+      const c = items<T.Change>(await api('GET', '/api/v1/changes', { query: { status: 'pending', limit: 200 } })).find((x) => x.id === id)
       if (!c) throw new QgError({ code: 'QG_NOT_FOUND', message: 'That change is not pending.' })
-      const approval = { change_hash: await changeHash(ctx, c), change_id: id, decision: 'approve', purpose: 'approve', suite: SUITE }
+      const approval = approvalStatement(await checkedChangeHash(ctx, c), id)
       return api<T.Change>('POST', `/api/v1/changes/${seg(id)}/approve`, { json: { signature: signChange(approval) } })
     },
     rejectChange: (id, reason) => api<T.Change>('POST', `/api/v1/changes/${seg(id)}/reject`, { json: { reason } }),
@@ -319,7 +334,12 @@ export function createRealClient(opts: RealClientOptions = {}): QgClient {
     },
     createService: (name) => api<T.Service>('POST', '/api/v1/services', { json: { name } }),
     rotateService: (id, input) => api<T.Service>('POST', `/api/v1/services/${seg(id)}/rotate`, { json: input }),
-    policy: () => api<T.Policy>('GET', '/api/v1/policy'),
+    async policy() {
+      const p = await api<T.Policy>('GET', '/api/v1/policy')
+      const check = await verifyPolicy(p, await serverKeys(ctx), ctx.prov)
+      if (!check.ok) throw integrity(check.reason, 'The policy the server sent does not match its signed bundle.')
+      return p
+    },
     overview: () => api<T.Overview>('GET', '/api/v1/overview'),
     async listSignals() {
       return items<T.Signal>(await api('GET', '/api/v1/signals'))

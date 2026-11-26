@@ -51,7 +51,7 @@ function useSequence(last: number, intervalMs: number) {
 function Section({ id, index, label, title, lead, children, className }: { id: string; index: string; label: string; title: string; lead?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section id={id} aria-labelledby={`${id}-title`} className={cn('scroll-mt-24 border-t border-rule', className)}>
-      <div className="mx-auto grid max-w-[1120px] gap-x-10 gap-y-6 px-4 py-14 sm:px-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:py-20">
+      <div className="mx-auto grid max-w-[1120px] grid-cols-[minmax(0,1fr)] gap-x-10 gap-y-6 px-4 py-14 sm:px-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:py-20">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <p className="label-caps">
             <span className="text-primary">{index}</span> · {label}
@@ -175,11 +175,13 @@ function Architecture() {
   )
 }
 
-function flattenNumbers(value: unknown, prefix = '', out: [string, number][] = []): [string, number][] {
-  if (typeof value === 'number') out.push([prefix, value])
-  else if (value && typeof value === 'object' && !Array.isArray(value)) for (const [k, v] of Object.entries(value)) flattenNumbers(v, prefix ? `${prefix}.${k}` : k, out)
-  return out
+type Bench = Record<string, unknown>
+const num = (v: unknown, ...path: string[]): number | null => {
+  let cur: unknown = v
+  for (const k of path) cur = cur && typeof cur === 'object' ? (cur as Bench)[k] : undefined
+  return typeof cur === 'number' ? cur : null
 }
+const fmt = (n: number | null, digits = 1) => (n === null ? 'not measured' : n >= 100 ? n.toFixed(0) : n.toFixed(n < 1 ? 3 : digits))
 
 function Performance() {
   if (!bench) {
@@ -190,21 +192,92 @@ function Performance() {
       </p>
     )
   }
-  const commit = typeof bench.commit === 'string' ? bench.commit : null
-  const rows = flattenNumbers(bench).slice(0, 18)
+  const b = bench as Bench
+  const str = (k: string) => (typeof b[k] === 'string' ? (b[k] as string) : null)
+  const machine = b.machine && typeof b.machine === 'object' ? (b.machine as Bench) : {}
+  // The headline rows: what was measured, against the target set before building.
+  const rows: { what: string; value: number | null; unit: string; target: number | null }[] = [
+    { what: 'Time to enforce a revocation (p95)', value: num(b, 'time_to_enforce_ms', 'p95'), unit: 'ms', target: num(b, 'targets', 'time_to_enforce_ms') },
+    { what: 'Policy decision (p95)', value: num(b, 'policy_decision_ms', 'p95'), unit: 'ms', target: num(b, 'targets', 'policy_decision_p95_ms') },
+    { what: 'Key slot release (p95)', value: num(b, 'slot_release_ms', 'p95'), unit: 'ms', target: num(b, 'targets', 'slot_release_p95_ms') },
+    { what: 'Added latency per request, against an unprotected route (p95)', value: num(b, 'added_latency_ms', 'p95'), unit: 'ms', target: num(b, 'targets', 'added_latency_p95_ms') },
+    { what: 'Cold start', value: num(b, 'cold_start_s'), unit: 's', target: num(b, 'targets', 'cold_start_s') },
+    { what: 'Container image, unpacked', value: num(b, 'image_size_mb', 'value'), unit: 'MB', target: num(b, 'targets', 'image_size_mb') },
+  ]
+  const more: [string, string][] = [
+    ['Session handshake (median)', `${fmt(num(b, 'session_handshake_ms', 'median'))} ms`],
+    ['Protect a file', `${fmt(num(b, 'throughput_mb_s', 'protect'), 0)} MB/s`],
+    ['Open a file', `${fmt(num(b, 'throughput_mb_s', 'open'), 0)} MB/s`],
+    ['Hybrid key exchange, encapsulate (median)', `${fmt(num(b, 'crypto_ms', 'xwing_encaps', 'median'))} ms`],
+    ['ML-DSA-65 sign / verify (median)', `${fmt(num(b, 'crypto_ms', 'mldsa_sign', 'median'))} / ${fmt(num(b, 'crypto_ms', 'mldsa_verify', 'median'))} ms`],
+    ['Signing 1,000 receipts as one checkpoint', `${fmt(num(b, 'checkpoint_signing_ms_per_1000_receipts', 'batched'))} ms`],
+    ['Size added per file', `${fmt(num(b, 'throughput_mb_s', 'size_overhead', 'per_file_bytes'), 0)} bytes per 16 MiB`],
+    ['Size added per request', `${fmt(num(b, 'throughput_mb_s', 'size_overhead', 'per_request_header_bytes'), 0)} bytes`],
+  ]
   return (
     <div data-testid="bench-present">
-      <dl className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex items-baseline justify-between gap-4 border-b border-border py-1.5">
-            <dt className="data text-[0.8125rem] text-muted-foreground">{k}</dt>
-            <dd className="data font-medium">{Number.isInteger(v) ? v : v.toFixed(2)}</dd>
+      <div className="overflow-x-auto border border-border">
+        <table className="w-full min-w-[30rem] text-left">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="label-caps p-3 font-medium">Measured</th>
+              <th className="label-caps p-3 text-right font-medium">Result</th>
+              <th className="label-caps p-3 text-right font-medium">Target</th>
+              <th className="label-caps p-3 font-medium">Met</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const met = r.value !== null && r.target !== null ? r.value <= r.target : null
+              return (
+                <tr key={r.what} className="border-b border-border last:border-b-0">
+                  <th scope="row" className="p-3 align-top font-normal">
+                    {r.what}
+                  </th>
+                  <td className="data p-3 text-right align-top font-medium whitespace-nowrap">
+                    {fmt(r.value)} {r.value !== null ? r.unit : ''}
+                  </td>
+                  <td className="data p-3 text-right align-top whitespace-nowrap text-muted-foreground">{r.target !== null ? `under ${r.target} ${r.unit}` : ''}</td>
+                  <td className="p-3 align-top">
+                    {met === null ? (
+                      <span className="text-muted-foreground">Not measured</span>
+                    ) : met ? (
+                      <span className="inline-flex items-center gap-1 text-allow">
+                        <Check className="size-4" aria-hidden />
+                        Yes
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-deny">
+                        <Minus className="size-4" aria-hidden />
+                        No
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <dl className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-x-8 sm:grid-cols-[repeat(2,minmax(0,1fr))]">
+        {more.map(([k, v]) => (
+          <div key={k} className="flex items-baseline justify-between gap-4 border-b border-border py-2">
+            <dt className="min-w-0 text-muted-foreground">{k}</dt>
+            <dd className="data shrink-0 font-medium whitespace-nowrap">{v}</dd>
           </div>
         ))}
       </dl>
-      <p className="mt-3 text-sm text-muted-foreground">
-        Measured by <span className="data">make bench</span> on the machine that built this page{commit ? <>, at commit <span className="data">{commit.slice(0, 10)}</span></> : null}. Run it
-        yourself to compare.
+      <p className="mt-4 text-sm text-muted-foreground">
+        Measured by <span className="data">make bench</span>
+        {str('commit') ? (
+          <>
+            {' '}
+            at commit <span className="data">{str('commit')!.slice(0, 10)}</span>
+          </>
+        ) : null}
+        {str('generated_at') ? <>, {str('generated_at')!.slice(0, 10)}</> : null}
+        {typeof machine.platform === 'string' ? <>, on {String(machine.platform)} with {String(machine.cpu_count ?? '?')} cores</> : null}. A target that was missed is shown as
+        missed. Run it yourself to compare.
       </p>
     </div>
   )

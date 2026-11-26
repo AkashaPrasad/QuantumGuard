@@ -97,9 +97,11 @@ function isServerKeys(k: unknown): k is ServerKeys {
 }
 
 /**
- * SUITE.md 9.4: offline proof bundle verification, stopping at the first failure: format and suite;
- * checkpoint dual signature; report dual signature; each entry's leaf hash and inclusion path in
- * order; revocation checkpoint signature and consistency to the newest checkpoint.
+ * SUITE.md 9.4: offline proof bundle verification, stopping at the first failure, in the order the
+ * spec fixes: format and suite; checkpoint dual signature; each entry's leaf hash and inclusion path
+ * in leaf_index order (before the bundle signature, so a modified receipt is reported by its index);
+ * the bundle's own dual signature (purpose report); revocation checkpoint signature and consistency
+ * to the newest checkpoint; the directory's dual signature.
  * `pinned` keys are preferred; without them the bundle's own keys are used and `reason` says so.
  */
 export function verifyProofBundle(bundle: unknown, pinned: ServerKeys | null, emit?: Emit, prov: CryptoProvider = getProvider()): VerifyResult {
@@ -114,7 +116,6 @@ export function verifyProofBundle(bundle: unknown, pinned: ServerKeys | null, em
   const keys = pinned ?? b.server_keys
   const cp = b.checkpoint
   if (!verifyCheckpoint(cp, keys, emit, prov)) return result(false, 0, null, 'checkpoint_signature', null)
-  if (!verifyDualWithSteps(bundle, keys, 'report', emit, prov)) return result(false, 0, null, 'report_signature', cp)
   if (!Array.isArray(b.entries)) return result(false, 0, null, 'bad_format', cp)
   const entries = b.entries as BundleEntry[]
   let checked = 0
@@ -127,6 +128,7 @@ export function verifyProofBundle(bundle: unknown, pinned: ServerKeys | null, em
     if (reason) return result(false, checked, idx, reason, cp)
     checked++
   }
+  if (!verifyDualWithSteps(bundle, keys, 'report', emit, prov)) return result(false, checked, null, 'report_signature', cp)
   const rcp = b.revocation_checkpoint
   if (rcp !== undefined && rcp !== null) {
     if (!verifyCheckpoint(rcp, keys, emit, prov)) return result(false, checked, null, 'revocation_checkpoint_signature', cp)
@@ -137,7 +139,10 @@ export function verifyProofBundle(bundle: unknown, pinned: ServerKeys | null, em
     } catch {
       ok = false
     }
-    if (!ok) return result(false, checked, null, 'consistency_failed', cp)
+    if (rcp.tree_size > 0 && !ok) return result(false, checked, null, 'consistency_failed', cp)
+  }
+  if (b.directory !== undefined && b.directory !== null && !verifyDual(b.directory, keys, 'directory', prov).ok) {
+    return result(false, checked, null, 'directory_signature', cp)
   }
   return result(true, checked, null, pinned ? null : 'keys_from_bundle_only', cp)
 }

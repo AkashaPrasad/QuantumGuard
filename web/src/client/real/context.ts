@@ -198,6 +198,21 @@ export async function acceptCheckpoint(ctx: Ctx, cp: T.Checkpoint): Promise<T.Ch
   return cp
 }
 
+/**
+ * SUITE.md 7.6 / 10: the sig_pk a device had when it signed a statement bound to `epoch`, from a
+ * directory this client verified (the current one, else that epoch's). A device revoked at or before
+ * that epoch is refused.
+ */
+export async function signerKey(ctx: Ctx, signerId: string, epoch: number): Promise<Uint8Array> {
+  const current = await trustedDirectory(ctx)
+  let cert = findDevice(current, signerId)
+  if (!cert) cert = findDevice(await trustedDirectoryAt(ctx, epoch), signerId)
+  if (!cert) throw integrity('unknown_signer')
+  const rev = current.revoked.find((r) => r.device_id === signerId)
+  if (rev && rev.epoch <= epoch) throw integrity('revoked_signer')
+  return fromB64u(cert.sig_pk, 1952)
+}
+
 // ---- directory helpers ------------------------------------------------------------------------
 
 /** Active, unexpired, unrevoked devices of the given people (directory issued_at as the clock). */

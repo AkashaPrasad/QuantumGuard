@@ -13,25 +13,23 @@ import {
   encryptChunk,
   signManifest,
   signShare,
-  unwrapDekAny,
+  unwrapDek,
   verifyManifest,
   wrapBinding,
   wrapDek,
   type InnerWrap,
   type Manifest,
-  type WrapBinding,
 } from '../../crypto/envelope'
 import { RECOVERY_DEVICE_ID } from '../../crypto/suite'
 import {
   activeDevices,
   fetchMeta,
-  findDevice,
   integrity,
   requireUnlocked,
   seg,
   throwIfAborted,
+  signerKey,
   trustedDirectory,
-  trustedDirectoryAt,
   userName,
   yieldToLoop,
   type Ctx,
@@ -42,6 +40,8 @@ interface Slot {
   file_id: string
   version: number
   device_id: string
+  /** Directory epoch the inner wrap is bound to (the manifest's, or the share statement's). */
+  wrap_epoch: number
   inner_wrap: InnerWrap
   manifest: Manifest
   manifest_sig: string
@@ -80,8 +80,12 @@ async function wrapForDevices(ctx: Ctx, dek: Uint8Array, fileId: string, version
   return out
 }
 
-/** SUITE.md 7.2: the recovery wrap under the directory's recovery_pk. */
-function recoveryWrap(ctx: Ctx, dek: Uint8Array, fileId: string, version: number, dir: T.Directory): Promise<InnerWrap> {
+/**
+ * SUITE.md 7.2: the recovery wrap under the directory's recovery_pk. spec/API.md 6: required once the
+ * verified directory carries a recovery_pk (a kit was issued) and absent before, so null means "send none".
+ */
+async function recoveryWrap(ctx: Ctx, dek: Uint8Array, fileId: string, version: number, dir: T.Directory): Promise<InnerWrap | null> {
+  if (!dir.recovery_pk) return null
   return wrapDek(fromB64u(dir.recovery_pk, 1216), dek, wrapBinding(fileId, version, RECOVERY_DEVICE_ID, dir.epoch), ctx.prov)
 }
 
@@ -106,7 +110,7 @@ async function commitVersion(
     const manifest_sig = signManifest(ctx.keyring.sigSeed(), manifest, ctx.prov)
     onProgress?.({ phase: 'committing' })
     const { data } = await ctx.http.call<{ file: T.FileItem; receipt_id: string }>('POST', `${filePath(x.fileId)}/versions/${x.version}/commit`, {
-      json: { manifest, manifest_sig, wraps, recovery_wrap: recovery },
+      json: recovery ? { manifest, manifest_sig, wraps, recovery_wrap: recovery } : { manifest, manifest_sig, wraps },
     })
     return data
   })
@@ -193,35 +197,18 @@ async function uploadChunks(
 
 // ---- opening -----------------------------------------------------------------------------------
 
-/** SUITE.md 7.6: the signer's sig_pk from a directory this client verified (current, else the manifest's epoch). */
-async function signerKey(ctx: Ctx, signerId: string, manifestEpoch: number): Promise<Uint8Array> {
-  const current = await trustedDirectory(ctx)
-  let cert = findDevice(current, signerId)
-  if (!cert) cert = findDevice(await trustedDirectoryAt(ctx, manifestEpoch), signerId)
-  if (!cert) throw integrity('unknown_signer')
-  const rev = current.revoked.find((r) => r.device_id === signerId)
-  if (rev && rev.epoch <= manifestEpoch) throw integrity('revoked_signer')
-  return fromB64u(cert.sig_pk, 1952)
-}
-
-/** SUITE.md 7.2/7.6: bindings to try: the manifest's epoch, then later epochs up to the newest seen (share wraps). */
-function wrapCandidates(ctx: Ctx, fileId: string, m: Manifest, deviceId: string): WrapBinding[] {
-  const newest = Math.max(ctx.stored?.highest_epoch ?? 0, ...ctx.directories.keys(), m.directory_epoch)
-  const out: WrapBinding[] = []
-  for (let e = m.directory_epoch; e <= newest && out.length < 4096; e++) out.push(wrapBinding(fileId, m.version, deviceId, e))
-  return out
-}
-
 /** GET slot, verify the manifest, unwrap the DEK (SUITE.md 7.6). The caller wipes the DEK. */
 async function openSlot(ctx: Ctx, fileId: string, signal?: AbortSignal): Promise<{ slot: Slot; dek: Uint8Array }> {
   const { stored } = requireUnlocked(ctx)
   const { data: slot } = await ctx.http.call<Slot>('GET', `${filePath(fileId)}/slot`, { signal })
   const m = slot.manifest
   if (!m || m.file_id !== fileId || m.version !== slot.version || slot.device_id !== stored.device.device_id) throw integrity('slot_mismatch')
+  // A commit wrap is bound to the manifest's epoch, a share wrap to its (later) share statement's epoch.
+  if (!Number.isSafeInteger(slot.wrap_epoch) || slot.wrap_epoch < m.directory_epoch) throw integrity('slot_mismatch')
   const pk = await signerKey(ctx, slot.signer_device_id, m.directory_epoch)
   if (!verifyManifest(pk, m, slot.manifest_sig, ctx.prov)) throw integrity('manifest_signature')
   try {
-    const { dek } = await unwrapDekAny(ctx.keyring.kemSeed(), slot.inner_wrap, wrapCandidates(ctx, fileId, m, stored.device.device_id), ctx.prov)
+    const dek = await unwrapDek(ctx.keyring.kemSeed(), slot.inner_wrap, wrapBinding(fileId, m.version, stored.device.device_id, slot.wrap_epoch), ctx.prov)
     return { slot, dek }
   } catch {
     throw integrity('wrap')

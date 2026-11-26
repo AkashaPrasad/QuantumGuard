@@ -88,14 +88,14 @@ test.describe('admin (Mira)', () => {
     await expect(page.getByTestId('changes-list')).toContainText('Grant Auditor to Daniel Mensah')
   })
 
-  test('a role that is already held is refused with a message', async ({ page }) => {
+  test('granting offers only roles not held; removing only roles held', async ({ page }) => {
     await goto(page, 'People')
     await page.getByRole('button', { name: 'More actions for Jonas Weber' }).click()
     await page.getByRole('menuitem', { name: 'Change role' }).click()
-    await chooseRole(page, 'change-role', 'Auditor')
-    await page.getByTestId('change-reason').fill('duplicate on purpose')
-    await page.getByTestId('change-submit').click()
-    await expect(page.getByRole('dialog').getByTestId('error-notice')).toContainText('That was already done')
+    const options = () => page.getByTestId('change-role').locator('option').allTextContents()
+    expect(await options()).not.toContain('Auditor')
+    await page.getByRole('dialog').getByText('Remove a role').click()
+    expect(await options()).toEqual(['Auditor'])
   })
 
   test('Change requests: self-approval is prevented, with a note', async ({ page }) => {

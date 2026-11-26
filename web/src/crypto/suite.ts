@@ -79,19 +79,32 @@ export function verifyDual(obj: unknown, keys: ServerKeys, p: ServerPurpose, pro
   const fail = { ed25519: false, mldsa: false, ok: false }
   if (!obj || typeof obj !== 'object') return fail
   const o = obj as Record<string, unknown>
-  const sigs = o.signatures as Record<string, unknown> | undefined
-  if (!sigs || typeof sigs !== 'object' || Array.isArray(sigs)) return fail
-  const names = Object.keys(sigs).sort()
-  if (names.length !== 2 || names[0] !== 'ed25519' || names[1] !== 'mldsa') return fail
-  if (typeof sigs.ed25519 !== 'string' || typeof sigs.mldsa !== 'string') return fail
   let m: Uint8Array
-  let edPk: Uint8Array, mlPk: Uint8Array, edSig: Uint8Array, mlSig: Uint8Array
   try {
     m = signingInput(o)
+  } catch {
+    return fail
+  }
+  return verifyDualBytes(m, o.signatures, keys, p, prov)
+}
+
+/**
+ * SUITE.md 4 dual-signature rule over exact bytes M (for documents the server ships as bytes, such as
+ * the policy bundle in SUITE.md 13): `sigs` must be exactly {ed25519, mldsa}.
+ */
+export function verifyDualBytes(m: Uint8Array, sigs: unknown, keys: ServerKeys, p: ServerPurpose, prov: CryptoProvider = getProvider()): DualResult {
+  const fail = { ed25519: false, mldsa: false, ok: false }
+  if (!sigs || typeof sigs !== 'object' || Array.isArray(sigs)) return fail
+  const sg = sigs as Record<string, unknown>
+  const names = Object.keys(sg).sort()
+  if (names.length !== 2 || names[0] !== 'ed25519' || names[1] !== 'mldsa') return fail
+  if (typeof sg.ed25519 !== 'string' || typeof sg.mldsa !== 'string') return fail
+  let edPk: Uint8Array, mlPk: Uint8Array, edSig: Uint8Array, mlSig: Uint8Array
+  try {
     edPk = fromB64u(keys.ed25519_pk, ED25519_PK_BYTES)
     mlPk = fromB64u(keys.mldsa_pk, MLDSA_PK_BYTES)
-    edSig = fromB64u(sigs.ed25519)
-    mlSig = fromB64u(sigs.mldsa)
+    edSig = fromB64u(sg.ed25519)
+    mlSig = fromB64u(sg.mldsa)
   } catch {
     return fail
   }

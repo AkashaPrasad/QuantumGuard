@@ -121,7 +121,7 @@ File names and sizes are metadata the server can read; contents and file keys ar
  subject: {user_id, device_id, session_id},   // any may be null
  summary, explanation: {condition, receipt_ids[]},
  response: {id, action: "deny"|"end_session"|"quarantine_device"|"quarantine_identity"|"throttle"|"require_fresh_session"|"hold_enrolment"|"freeze_key_release"|"none",
-            scope: {kind: "session"|"device"|"identity"|"credential"|"global", id}, expires_at | null, lifted_at | null, lifted_by | null} | null,
+            scope: {kind: "session"|"device"|"identity"|"credential"|"source"|"global", id}, expires_at | null, lifted_at | null, lifted_by | null} | null,
  incident_id | null, acknowledged_by | null}
 ```
 
@@ -147,7 +147,7 @@ read `O` as `0` and `I` or `L` as `1`. Clients send what the person typed.
 |---|---|
 | Code unknown, used or expired | `QG_INVALID_INPUT` / `invite_invalid` (one answer for all three) |
 | Signature or key confirmation wrong | `QG_BAD_SIGNATURE` / `proof_failed` |
-| A loss report is open for this person | `QG_QUARANTINED` / `enrolment_held` (rule QG-R011; an operator lifts the hold) |
+| A loss report is open for this person | `QG_QUARANTINED` / `enrolment_held` (rule QG-R011). The hold lasts until an operator closes the incident or lifts the response, even after the files have new keys |
 
 ### 4.2 Session
 
@@ -202,6 +202,7 @@ People are read from the directory (`users`). There is no separate user list rou
 - `recovery_wrap` is required once the directory carries a `recovery_pk` and must be absent before:
   `QG_INVALID_INPUT` / `recovery_wrap_required` or `no_recovery_key`.
 - A lease is bound to the session that received it; a chunk read with another session's lease answers `QG_LEASE_EXPIRED`.
+- Only the owner's devices create or commit a later version of a file, whatever the `reason`; anyone else answers `QG_DENY_POLICY` / `owner_required`.
 - A file the caller may not see answers `QG_NOT_FOUND` on every route.
 
 ## 7. Devices and incidents
@@ -217,6 +218,8 @@ People are read from the directory (`users`). There is no separate user list rou
 | `GET /incidents/{id}/exposure` | same | Exposure |
 | `GET /incidents/{id}/bundle` | operator, auditor | ProofBundle (`spec/SUITE.md`), verifiable offline with `qg verify` |
 | `POST /incidents/{id}/close` | operator | Incident; refused with `QG_CONFLICT` / `rekey_pending` while exposed files wait |
+
+Revocation also cancels every pending enrolment code for that person, and every pending code that person or the lost device created for anyone.
 
 Reporting your own device lost revokes it at once: safety first, the operator can correct the
 compromise time afterwards by calling `/revoke` on the same device, which re-scopes the incident
@@ -253,7 +256,7 @@ from the revoked device after the revoke committed.
 | `POST /alerts/{id}/ack` | operator | `{note?}` -> Alert |
 | `POST /responses/{id}/lift` | operator who is not the person, device or session the response contains; an admin when the contained person is an operator | `{reason}` -> Alert. Lifting your own containment answers `QG_DENY_POLICY` / `self_lift` |
 | `POST /signals` | operator; service identity | Security Event Token shaped body (`spec/SUITE.md`) -> `{signal_id, accepted: true, duplicate: bool}` |
-| `GET /signals` | operator, auditor | recent signals |
+| `GET /signals` | operator, auditor | recent signals, newest first: the fields of the `Signal` type in `web/src/client/types.ts`, which mirror `spec/openapi.json` |
 | `GET /policy` | everyone | `{bundle_hash, version, signed_at, signatures, document, rules:[{id, effect: "allow"|"deny", description, roles[], actions[], conditions}]}`. `document` is the b64u of the exact signed bundle bytes; `bundle_hash` is its SHA-256 and `signatures` cover it, so a client can check the rules it is shown |
 | `GET /overview` | admin, operator, auditor | `{active_devices, revoked_devices, pending_rekeys, open_alerts, open_incidents, last_time_to_enforce_ms | null, directory_epoch, tree_size, decisions_by_hour:[{hour, allow, deny}]}` (last 24 hours) |
 
@@ -314,3 +317,13 @@ It prints `{"invites":[{"user_id","name","roles","code","expires_at"}]}` to its 
 (the caller's terminal, not the server log). These codes are single use and live 24 hours.
 `make demo` calls it, then works through the public API like any other client. No HTTP route
 creates a code without a session, and no route creates data without a session or an invite.
+
+## 11. Responses to failures that prove no key
+
+A failed session proof or a bad request MAC does not prove who sent it, so the automatic response
+(rule QG-R012) falls on the source, never on the device that was named: scope kind `source`, id
+`<address>|<claimed device or person>`. For 300 seconds further failed proofs or bad MACs from that
+address for that claim answer `QG_RATE_LIMITED` / `source_throttled` (or `QG_BAD_MAC`) without new
+records; a correct proof is always accepted, and an operator can lift the response. Behind a reverse
+proxy set `QG_TRUSTED_PROXIES` to the proxy's address so the client address is taken from
+`X-Forwarded-For`; without it every client appears to come from the proxy.

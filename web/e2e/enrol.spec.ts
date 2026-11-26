@@ -147,14 +147,20 @@ test.describe('enrol a device', () => {
     await expect(page.getByTestId('enrol-create')).toBeEnabled()
   })
 
-  test('Continue stays disabled until the code has 4 characters', async ({ page }) => {
+  test('a code that is too short is explained in place instead of sent', async ({ page }) => {
     await page.goto('/app/enrol?persona=none')
     await expect(page.getByTestId('enrol-code')).toBeFocused() // the app has mounted
     await expect(page.getByTestId('enrol-next')).toBeDisabled()
     await page.getByTestId('enrol-code').fill('abc')
-    await expect(page.getByTestId('enrol-next')).toBeDisabled()
-    await page.getByTestId('enrol-code').fill('abcd')
     await expect(page.getByTestId('enrol-next')).toBeEnabled()
+    await page.getByTestId('enrol-next').click()
+    await expect(page.getByTestId('enrol-code-problem')).toContainText('does not look like an enrolment code')
+    await expect(page.getByTestId('enrol-code')).toBeFocused()
+    await expect(page.getByTestId('enrol-device-name')).toHaveCount(0)
+    await page.getByTestId('enrol-code').fill('kestrel-aiko')
+    await expect(page.getByTestId('enrol-code-problem')).toHaveCount(0)
+    await page.getByTestId('enrol-next').click()
+    await expect(page.getByTestId('enrol-device-name')).toBeVisible()
   })
 
   test('capitals do not matter: a lower-case code enrols', async ({ page }) => {

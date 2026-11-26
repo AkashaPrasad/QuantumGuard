@@ -50,6 +50,10 @@ const COPY: Record<string, Entry> = {
     title: 'A second person has to approve this',
     body: 'You requested it or it is about you. Ask another admin to approve.',
   },
+  'QG_DENY_POLICY/self_lift': {
+    title: 'Someone else has to lift this',
+    body: 'The response contains you or this device. Another operator, or an admin, can lift it.',
+  },
   'QG_DENY_POLICY/role_required': {
     title: 'Not available for your role',
     body: 'This action needs a role you do not hold.',

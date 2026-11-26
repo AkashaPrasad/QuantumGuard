@@ -237,8 +237,8 @@ export default function IncidentDetail() {
       {i.counts.pending > 0 ? (
         <p className="mt-3 flex items-center gap-2 text-sm text-caution" role="status">
           <KeyRound className="size-4" aria-hidden />
-          {i.counts.rekeyed} of {i.counts.rekeyed + i.counts.pending} affected files have a new key. A device that can still open them does this work; it continues
-          when one is unlocked.
+          {i.counts.rekeyed} of {i.counts.rekeyed + i.counts.pending} affected files have a new key. Only a device of each file's owner may give it a new key, so this continues when
+          those owners next unlock a device.
         </p>
       ) : null}
 

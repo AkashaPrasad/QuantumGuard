@@ -46,6 +46,10 @@ function guessDeviceName(): string {
 
 const deviceNameOk = (name: string) => name.trim().length >= 2
 
+/** What the server accepts as a code: 10 to 64 characters of letters, digits, hyphens and spaces. */
+const codeOk = (code: string) => /^[0-9A-Za-z][0-9A-Za-z\s-]{8,62}[0-9A-Za-z]$/.test(code.trim())
+const CODE_HINT = 'Codes have 16 letters and digits in four groups, like K7QM-2XVD-9RTA-HB4N.'
+
 function strength(p: string): { score: 0 | 1 | 2 | 3; label: string } {
   if (p.length < MIN_LENGTH) return { score: 0, label: `${MIN_LENGTH - p.length} more ${MIN_LENGTH - p.length === 1 ? 'character' : 'characters'} needed` }
   const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((r) => r.test(p)).length
@@ -96,12 +100,13 @@ export default function Enrol() {
   const [confirm, setConfirm] = useState('')
   const [show, setShow] = useState(false)
   const [touchedConfirm, setTouchedConfirm] = useState(false)
+  const [codeProblem, setCodeProblem] = useState(false)
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<EnrolStep | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [enrolled, setEnrolled] = useState<LocalDevice | null>(null)
   const wanted = Number(params.get('step') ?? 0)
-  const step = wanted === 2 && code.trim().length >= 4 && deviceNameOk(deviceName) ? 2 : wanted >= 1 && code.trim().length >= 4 ? 1 : 0
+  const step = wanted === 2 && codeOk(code) && deviceNameOk(deviceName) ? 2 : wanted >= 1 && codeOk(code) ? 1 : 0
   const setStep = (n: number, replace = false) => {
     const next = new URLSearchParams(params)
     if (n === 0) next.delete('step')
@@ -170,13 +175,19 @@ export default function Enrol() {
       setError(err)
       setRunning(false)
       // A refused code sends the person back to it, with what they typed kept.
-      if (isCode(err, 'QG_INVALID_INPUT') && err.reason === 'invite_invalid') setStep(0, true)
+      if (isCode(err, 'QG_INVALID_INPUT')) setStep(0, true)
     }
   }
 
   function next(e: React.FormEvent) {
     e.preventDefault()
-    if (step === 0 && code.trim().length >= 4) {
+    if (step === 0) {
+      if (!codeOk(code)) {
+        setCodeProblem(true)
+        firstField.current?.focus()
+        return
+      }
+      setCodeProblem(false)
       setError(null)
       setStep(1)
     } else if (step === 1 && deviceNameOk(deviceName)) setStep(2)
@@ -267,16 +278,26 @@ export default function Enrol() {
               id="enrol-code"
               data-testid="enrol-code"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => {
+                setCode(e.target.value)
+                if (codeProblem && codeOk(e.target.value)) setCodeProblem(false)
+              }}
+              aria-invalid={codeProblem || undefined}
               autoComplete="one-time-code"
               autoCapitalize="characters"
               spellCheck={false}
               className="data h-11 text-base tracking-[0.12em]"
               aria-describedby="enrol-code-help"
             />
-            <p id="enrol-code-help" className="text-sm text-muted-foreground">
-              Codes work once and last 15 minutes. Hyphens and capitals do not matter.
-            </p>
+            {codeProblem ? (
+              <p id="enrol-code-help" data-testid="enrol-code-problem" role="alert" className="text-sm text-deny">
+                That does not look like an enrolment code. {CODE_HINT}
+              </p>
+            ) : (
+              <p id="enrol-code-help" className="text-sm text-muted-foreground">
+                {CODE_HINT} They work once; hyphens and capitals do not matter.
+              </p>
+            )}
           </div>
         ) : null}
 
@@ -379,7 +400,7 @@ export default function Enrol() {
               size="lg"
               className="h-10 flex-1"
               data-testid="enrol-next"
-              disabled={step === 0 ? code.trim().length < 4 : !deviceNameOk(deviceName)}
+              disabled={step === 0 ? code.trim() === '' : !deviceNameOk(deviceName)}
             >
               Continue
               <ArrowRight aria-hidden />

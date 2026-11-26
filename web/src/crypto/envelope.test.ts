@@ -15,7 +15,6 @@ import {
   sealMessage,
   signManifest,
   unwrapDek,
-  unwrapDekAny,
   verifyManifest,
   verifyShare,
   wrapBinding,
@@ -185,18 +184,6 @@ describe('envelope properties (local)', () => {
     await expect(unwrapDek(prov.xwingKeygen().seed, w, binding)).rejects.toThrow()
   })
 
-  it('a share wrap bound to a later epoch opens through the candidate list, only for its device', async () => {
-    const dek = prov.randomBytes(32)
-    const kp = prov.xwingKeygen()
-    const w = await wrapDek(kp.publicKey, dek, wrapBinding(fileId, 1, 'dev_A', 7))
-    const cands = [5, 6, 7, 8].map((e) => wrapBinding(fileId, 1, 'dev_A', e))
-    const r = await unwrapDekAny(kp.seed, w, cands)
-    expect(r.binding.directory_epoch).toBe(7)
-    expect(toHex(r.dek)).toBe(toHex(dek))
-    await expect(unwrapDekAny(kp.seed, w, [5, 6].map((e) => wrapBinding(fileId, 1, 'dev_A', e)))).rejects.toThrow()
-    await expect(unwrapDekAny(kp.seed, w, [7].map((e) => wrapBinding(fileId, 1, 'dev_B', e)))).rejects.toThrow()
-  })
-
   it('manifest recipients are sorted, unique and never recovery', () => {
     const m = buildManifest({ chunk_count: 1, ciphertext_sha256: 'AA', classification: 'internal', directory_epoch: 1, file_id: fileId, version: 1, recipients: ['dev_b', 'dev_a', 'dev_b'] })
     expect(m.recipients).toEqual(['dev_a', 'dev_b'])
@@ -209,9 +196,11 @@ describe('envelope properties (local)', () => {
   it('message envelopes round trip and bind device and recipient', async () => {
     const kp = prov.xwingKeygen()
     const env = await sealMessage(kp.publicKey, 'dev_x', 'usr_y', utf8('hi'))
-    expect(new TextDecoder().decode(await openMessage(kp.seed, env, 'usr_y'))).toBe('hi')
-    await expect(openMessage(kp.seed, env, 'usr_z')).rejects.toThrow()
-    await expect(openMessage(kp.seed, { ...env, device_id: 'dev_w' }, 'usr_y')).rejects.toThrow()
+    // GET /messages sends {xwing_ct, ciphertext} only: the opener supplies its own device id.
+    const wire = { xwing_ct: env.xwing_ct, ciphertext: env.ciphertext }
+    expect(new TextDecoder().decode(await openMessage(kp.seed, wire, 'dev_x', 'usr_y'))).toBe('hi')
+    await expect(openMessage(kp.seed, wire, 'dev_x', 'usr_z')).rejects.toThrow()
+    await expect(openMessage(kp.seed, wire, 'dev_w', 'usr_y')).rejects.toThrow()
     expect(new TextDecoder().decode(messageStatement('usr_y', [env]))).toContain('"to_user_id":"usr_y"')
   })
 })

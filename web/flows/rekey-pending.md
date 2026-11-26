@@ -1,5 +1,5 @@
 # Flow: rekey-pending
-Persona and goal: After a revocation or an unshare, files need new keys. The person should not have to do anything, only see that it is happening and when it is finished.
+Persona and goal: After a revocation or an unshare, files need new keys. Only the owner's devices may re-key a file (the server cannot check that re-encrypted contents are unchanged, so it trusts only the owner to do it). The person should not have to do anything, only see that it is happening and when it is finished.
 Entry points: automatic after unlock and after report-lost, revoke or unshare whenever `GET /rekey/pending` is not empty.
 Happy path:
 1. A banner under the top bar: "8 files are getting new keys. Keep this tab open." with a progress bar and the name of the file being worked on.

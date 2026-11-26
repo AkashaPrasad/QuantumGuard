@@ -1,10 +1,12 @@
-"""Start the ASGI application without a shell in the runtime image."""
+"""Start the server without a shell in the runtime image."""
 
 import os
+import sys
 
-import uvicorn
-
+from qg.server import main
 
 if __name__ == "__main__":
     # Bind inside the container; Compose publishes the port on host loopback only.
-    uvicorn.run("qg.app:app", host="0.0.0.0", port=int(os.environ.get("QG_PORT", "8080")))  # nosec B104
+    os.environ.setdefault("QG_HOST", "0.0.0.0")  # nosec B104
+    # qg.server reads QG_TRUSTED_PROXIES so the client address comes from the proxy's X-Forwarded-For.
+    sys.exit(main())

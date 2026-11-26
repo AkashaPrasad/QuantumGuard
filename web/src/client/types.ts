@@ -39,7 +39,8 @@ export interface Meta {
   commit: string
   demo: boolean
   server_keys: { ed25519_pk: string; mldsa_pk: string; kem_pk: string }
-  recovery_pk: string
+  /** null until a recovery kit has been issued */
+  recovery_pk: string | null
   policy_bundle_hash: string
   limits: {
     chunk_bytes: number
@@ -79,7 +80,7 @@ export interface Directory {
   users: DirectoryUser[]
   devices: Certificate[]
   revoked: { device_id: string; revoked_at: string; epoch: number }[]
-  recovery_pk: string
+  recovery_pk: string | null
   signatures: Signatures
 }
 
@@ -161,7 +162,7 @@ export type ResponseAction =
 export interface AlertResponse {
   id: string
   action: ResponseAction
-  scope: { kind: 'session' | 'device' | 'identity' | 'credential' | 'global'; id: string }
+  scope: { kind: 'session' | 'device' | 'identity' | 'credential' | 'source' | 'global'; id: string }
   expires_at: string | null
   lifted_at: string | null
   lifted_by: string | null
@@ -346,12 +347,17 @@ export interface RekeyPending {
   shares: { file_id: string; name: string; version: number; device_id: string; device_name: string }[]
 }
 
+/** GET /signals item, as backend/qg/api/alerts.py `list_signals` sends it (spec/API.md 8 leaves the shape open). */
 export interface Signal {
   signal_id: string
-  received_at: string
+  jti: string
+  iss: string
   event_type: string
-  subject: string
-  duplicate: boolean
+  subject_id: string
+  event_timestamp: number
+  received_at: string
+  /** false when the event was recorded but not applied (a duplicate or out-of-order delivery) */
+  applied: boolean
 }
 
 export interface Message {

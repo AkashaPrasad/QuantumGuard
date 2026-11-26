@@ -156,7 +156,7 @@ describe.skipIf(!cpDoc)(`proof bundle verification (local, uses checkpoint.json 
       checkpoint: cp,
       revocation_checkpoint: rcp,
       consistency: subproof(revAt, hs, true).map(b64u),
-      directory: { suite: 'QG-1', epoch: 3 },
+      directory: dualSign({ suite: 'QG-1', epoch: 3 }, 'directory'),
       exposure: { incident_id: 'inc_x' },
       entries: receipts.map((r, i) => ({ leaf_index: i, leaf_hash: b64u(hs[i]), receipt: r, audit_path: path(i, hs).map(b64u) })),
     }
@@ -193,6 +193,18 @@ describe.skipIf(!cpDoc)(`proof bundle verification (local, uses checkpoint.json 
     const forged = { ...entries[5].receipt, reason_code: 'forged' }
     entries[5] = { ...entries[5], receipt: forged, leaf_hash: receiptLeafHash(forged) }
     expect(verifyProofBundle(dualSign({ ...body, entries }, 'report'), keys)).toMatchObject({ ok: false, failed_index: 5, reason: 'inclusion_failed' })
+  })
+
+  it('a tampered receipt without re-signing is still reported by its index (entries before the report signature, SUITE.md 9.4)', () => {
+    const { bundle } = makeBundle()
+    const entries = bundle.entries.map((e) => ({ ...e, receipt: { ...e.receipt } }))
+    entries[2]!.receipt.decision = entries[2]!.receipt.decision === 'allow' ? 'deny' : 'allow'
+    expect(verifyProofBundle({ ...bundle, entries }, keys)).toMatchObject({ ok: false, failed_index: 2, checked: 2, reason: 'leaf_hash_mismatch' })
+  })
+
+  it('an unsigned or re-signed-by-someone-else directory fails after everything else', () => {
+    const { body } = makeBundle()
+    expect(verifyProofBundle(dualSign({ ...body, directory: { suite: 'QG-1', epoch: 3 } }, 'report'), keys)).toMatchObject({ ok: false, reason: 'directory_signature', checked: 7 })
   })
 
   it('a changed bundle without re-signing fails the report signature', () => {

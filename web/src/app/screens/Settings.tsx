@@ -79,11 +79,17 @@ function ServerKeys() {
   if (meta.isPending) return <RowsSkeleton rows={4} />
   if (meta.error) return <ErrorNotice error={meta.error} onRetry={() => void meta.refetch()} />
   const m = meta.data
-  const keys: { label: string; value: string; use: string }[] = [
+  const keys: { label: string; value: string | null; use: string }[] = [
     { label: 'Signing key (Ed25519)', value: m.server_keys.ed25519_pk, use: 'Checks the server signed the directory, checkpoints and key sets. Used with the post-quantum key below.' },
     { label: 'Signing key (ML-DSA)', value: m.server_keys.mldsa_pk, use: 'The post-quantum half of every server signature. Both must verify.' },
     { label: 'Key exchange key (ML-KEM)', value: m.server_keys.kem_pk, use: 'Lets a device set up a session with the server that nobody else can read.' },
-    { label: 'Recovery public key', value: m.recovery_pk, use: 'Locks the recovery slot of every file. Only the recovery kit can open it, and only after approval.' },
+    {
+      label: 'Recovery public key',
+      value: m.recovery_pk,
+      use: m.recovery_pk
+        ? 'Locks the recovery slot of every file. Only the recovery kit can open it, and only after approval.'
+        : 'No recovery kit has been issued yet, so files carry no recovery slot. Whoever operates the server issues the kit once with the local admin command.',
+    },
   ]
   return (
     <dl className="border border-border bg-card" data-testid="settings-server-keys">
@@ -124,7 +130,7 @@ function Recovery() {
   return (
     <>
       <p className="max-w-[68ch]">
-        When every device that could open a file is gone, the recovery kit can. The kit is a key created when the server first started and shown once. The server does not keep it. Releasing a file needs two other admins to approve, and the kit holder then runs a command on a trusted machine.
+        When every device that could open a file is gone, the recovery kit can. The kit is issued once, by whoever operates the server, with a local admin command; the server keeps only its public half. Releasing a file needs two approvals from people other than the requester, and the kit holder then runs a command on a trusted machine. The console never asks for the kit.
       </p>
       <form
         className="mt-4 flex max-w-xl flex-col gap-4 border border-border bg-card p-4"

@@ -115,6 +115,9 @@ function AlertSheet({ id, onClose }: { id: string; onClose: () => void }) {
   const device = a?.subject.device_id ? devices.data?.find((d) => d.device_id === a.subject.device_id) : undefined
   const canRevoke = isOperator && !!device && device.status !== 'revoked'
   const canLift = isOperator && !!a?.response && !a.response.lifted_at
+  // Nobody lifts their own containment: the server refuses it, so the button explains instead of failing.
+  const containsMe =
+    !!a && !!me.device && (a.subject.user_id === me.device.user_id || a.subject.device_id === me.device.device_id || a.response?.scope.id === me.device.user_id || a.response?.scope.id === me.device.device_id)
   const who = a ? [names.user(a.subject.user_id), names.device(a.subject.device_id)].filter(Boolean).join(' on ') : ''
 
   return (
@@ -214,10 +217,15 @@ function AlertSheet({ id, onClose }: { id: string; onClose: () => void }) {
                         </Button>
                       ) : null}
                       {canLift ? (
-                        <Button variant="outline" className="h-9" onClick={() => setLifting(a.response)} disabled={!online} data-testid="alert-lift">
+                        <Button variant="outline" className="h-9" onClick={() => setLifting(a.response)} disabled={!online || containsMe} data-testid="alert-lift">
                           <Undo2 aria-hidden />
                           Lift response
                         </Button>
+                      ) : null}
+                      {canLift && containsMe ? (
+                        <p className="basis-full text-sm text-muted-foreground" data-testid="alert-self-lift-note">
+                          This response contains you or this device, so someone else has to lift it.
+                        </p>
                       ) : null}
                       {canRevoke ? (
                         <Button variant="danger" className="h-9" onClick={() => setRevoking(device!)} disabled={!online} data-testid="alert-revoke-device">
