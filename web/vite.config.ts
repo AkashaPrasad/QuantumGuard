@@ -12,6 +12,8 @@ export default defineConfig({
     port: Number(process.env.QG_WEB_PORT ?? 5173),
     strictPort: true,
     proxy: { '/api': apiTarget, '/healthz': apiTarget },
+    // The public page reads ../bench/latest.json and ../spec/openapi.json at build time.
+    fs: { allow: ['..'] },
   },
   build: { target: 'es2023', sourcemap: false },
 })

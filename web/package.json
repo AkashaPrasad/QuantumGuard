@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test:crypto": "vitest run src/crypto"
+    "test:crypto": "vitest run src/crypto",
+    "test:e2e": "playwright test --project=mock --project=mock-idle --grep-invert @a11y",
+    "test:a11y": "playwright test --project=mock --grep @a11y"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",

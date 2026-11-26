@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/sidebar'
 import { countdown, initials } from '@/lib/format'
 import { useOnline } from '@/lib/hooks'
+import { Tour } from '@/tour/Tour'
 import { qk, useClient, useMe } from '../client-context'
 import { visibleNav } from '../nav'
 import type { Theme } from '../theme'
@@ -295,6 +296,7 @@ export function AppShell() {
         onOpenChange={setPalette}
         groups={visibleNav(roles, { messaging: meta?.features.messaging ?? false })}
       />
+      <Tour />
       <LockOverlay />
     </SidebarProvider>
   )
