@@ -7,7 +7,13 @@ const apiTarget = process.env.QG_API ?? 'http://127.0.0.1:8080'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // See src/lib/style-singleton.ts: keeps the strict style policy intact.
+      'react-style-singleton': fileURLToPath(new URL('./src/lib/style-singleton.ts', import.meta.url)),
+    },
+  },
   server: {
     port: Number(process.env.QG_WEB_PORT ?? 5173),
     strictPort: true,

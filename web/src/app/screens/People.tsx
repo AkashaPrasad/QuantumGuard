@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { NativeSelect } from '@/components/qg/native-select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { countdown } from '@/lib/format'
@@ -47,18 +47,13 @@ function CopyButton({ value }: { value: string }) {
 
 function RoleSelect({ id, value, onChange, testId }: { id: string; value: Role; onChange: (r: Role) => void; testId: string }) {
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as Role)}>
-      <SelectTrigger id={id} className="h-10 w-full" data-testid={testId}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {ROLE_ORDER.map((r) => (
-          <SelectItem key={r} value={r}>
-            {ROLE_LABEL[r]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <NativeSelect
+      id={id}
+      data-testid={testId}
+      value={value}
+      onValueChange={(v) => onChange(v as Role)}
+      options={ROLE_ORDER.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
+    />
   )
 }
 

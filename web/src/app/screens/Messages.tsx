@@ -7,7 +7,7 @@ import { EmptyState, PageHeader, RowsSkeleton, Section } from '@/components/qg/p
 import { useToast } from '@/components/qg/toast'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { NativeSelect } from '@/components/qg/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { qk, useClient, useMe } from '../client-context'
@@ -43,18 +43,16 @@ function Compose() {
     >
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="message-to">To</Label>
-        <Select value={to} onValueChange={setTo}>
-          <SelectTrigger id="message-to" className="h-10 w-full" data-testid="message-to">
-            <SelectValue placeholder="Choose a person" />
-          </SelectTrigger>
-          <SelectContent>
-            {recipients.map((u) => (
-              <SelectItem key={u.user_id} value={u.user_id}>
-                {u.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <NativeSelect
+          id="message-to"
+          data-testid="message-to"
+          value={to}
+          onValueChange={setTo}
+          options={[
+            { value: '', label: 'Choose a person', disabled: true },
+            ...recipients.map((u) => ({ value: u.user_id, label: u.name })),
+          ]}
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="message-text">Message</Label>

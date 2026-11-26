@@ -11,7 +11,7 @@ import { PageHeader, RowsSkeleton, Section } from '@/components/qg/page'
 import { useToast } from '@/components/qg/toast'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { NativeSelect } from '@/components/qg/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { formatBytes } from '@/lib/format'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
@@ -135,18 +135,18 @@ function Recovery() {
       >
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="recovery-file">File</Label>
-          <Select value={fileId} onValueChange={setFileId} disabled={files.isPending}>
-            <SelectTrigger id="recovery-file" className="h-10 w-full" data-testid="recovery-file">
-              <SelectValue placeholder={files.isPending ? 'Loading files…' : 'Choose a file'} />
-            </SelectTrigger>
-            <SelectContent>
-              {(files.data ?? []).map((f) => (
-                <SelectItem key={f.file_id} value={f.file_id}>
-                  {f.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            id="recovery-file"
+            className="w-full"
+            data-testid="recovery-file"
+            value={fileId}
+            onValueChange={setFileId}
+            disabled={files.isPending}
+            options={[
+              { value: '', label: files.isPending ? 'Loading files…' : 'Choose a file', disabled: true },
+              ...(files.data ?? []).map((f) => ({ value: f.file_id, label: f.name })),
+            ]}
+          />
           {files.error ? <ErrorNotice error={files.error} onRetry={() => void files.refetch()} /> : null}
           {files.data && files.data.length === 0 ? <p className="text-sm text-muted-foreground">There are no files to recover.</p> : null}
         </div>

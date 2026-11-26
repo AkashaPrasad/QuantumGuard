@@ -24,7 +24,13 @@ export const test = base.extend<{ seedTour: boolean }>({
         [TOUR_SEEN_KEY, TOUR_ROLE_KEYS] as const,
       )
     }
+    // A Content-Security-Policy complaint in the console is a real defect (the mock dev server sends no policy).
+    const csp: string[] = []
+    page.on('console', (m) => {
+      if (/Content Security Policy/i.test(m.text())) csp.push(m.text())
+    })
     await use(page)
+    expect(csp, 'Content Security Policy console messages').toEqual([])
   },
 })
 export { expect }
@@ -51,14 +57,16 @@ declare global {
 
 /** Thin wrappers over `window.__qgMock`, which only exists on the mock dev server. */
 export function mock(page: Page) {
+  // The control object is set while the app starts, so wait for it rather than racing the page load.
+  const ready = () => page.waitForFunction(() => !!window.__qgMock)
   return {
-    setOffline: (on: boolean) => page.evaluate((v) => window.__qgMock!.setOffline(v), on),
-    expireSession: () => page.evaluate(() => window.__qgMock!.expireSession()),
-    revokeCurrentDevice: () => page.evaluate(() => window.__qgMock!.revokeCurrentDevice()),
-    failNext: (code: string, reason?: string) => page.evaluate(([c, r]) => window.__qgMock!.failNext(c!, r), [code, reason] as const),
-    raiseAlert: (ruleId: string) => page.evaluate((id) => window.__qgMock!.raiseAlert(id), ruleId),
-    setLatency: (ms: number) => page.evaluate((v) => window.__qgMock!.setLatency(v), ms),
-    reset: () => page.evaluate(() => window.__qgMock!.reset()),
+    setOffline: async (on: boolean) => (await ready(), page.evaluate((v) => window.__qgMock!.setOffline(v), on)),
+    expireSession: async () => (await ready(), page.evaluate(() => window.__qgMock!.expireSession())),
+    revokeCurrentDevice: async () => (await ready(), page.evaluate(() => window.__qgMock!.revokeCurrentDevice())),
+    failNext: async (code: string, reason?: string) => (await ready(), page.evaluate(([c, r]) => window.__qgMock!.failNext(c!, r), [code, reason] as const)),
+    raiseAlert: async (ruleId: string) => (await ready(), page.evaluate((id) => window.__qgMock!.raiseAlert(id), ruleId)),
+    setLatency: async (ms: number) => (await ready(), page.evaluate((v) => window.__qgMock!.setLatency(v), ms)),
+    reset: async () => (await ready(), page.evaluate(() => window.__qgMock!.reset())),
   }
 }
 
@@ -115,4 +123,25 @@ export function firstByTestIdPrefix(page: Page, prefix: string): Locator {
 /** A small in-memory file for the protect dialog. */
 export function sampleFile(name = 'e2e-notes.txt', text = 'hello from the browser test') {
   return { name, mimeType: 'text/plain', buffer: Buffer.from(text) }
+}
+
+/**
+ * Arm `failNext` and click in the same browser task, so a background poll cannot use up the failure first.
+ */
+export async function failNextThenClick(page: Page, testId: string, code: string, reason?: string): Promise<void> {
+  await page.evaluate(
+    ([id, c, r]) => {
+      window.__qgMock!.failNext(c!, r ?? undefined)
+      ;(document.querySelector(`[data-testid="${id}"]`) as HTMLElement).click()
+    },
+    [testId, code, reason ?? null] as const,
+  )
+}
+
+/** Mark the tour as seen on a page opened by hand (the `page` fixture does this for you). */
+export async function seedTour(page: Page): Promise<void> {
+  await page.addInitScript(
+    ([key, roles]) => window.localStorage.setItem(key!, JSON.stringify(roles)),
+    [TOUR_SEEN_KEY, TOUR_ROLE_KEYS] as const,
+  )
 }

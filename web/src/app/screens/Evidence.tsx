@@ -8,7 +8,7 @@ import { Ident, Time } from '@/components/qg/ident'
 import { EmptyState, PageHeader, RowsSkeleton } from '@/components/qg/page'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { NativeSelect } from '@/components/qg/native-select'
 import { actionWords } from '@/lib/format'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { qk, useClient } from '../client-context'
@@ -90,19 +90,14 @@ export default function Evidence() {
         <DecisionSegment value={decision} onChange={setDecision} />
         <div>
           <label htmlFor="ev-action" className="label-caps mb-1 block">Action</label>
-          <Select value={action} onValueChange={setAction}>
-            <SelectTrigger id="ev-action" className="h-9 w-56" data-testid="filter-action">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All actions</SelectItem>
-              {ACTIONS.map((a) => (
-                <SelectItem key={a} value={a}>
-                  {actionWords(a)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            id="ev-action"
+            className="w-56 [&_select]:h-9"
+            data-testid="filter-action"
+            value={action}
+            onValueChange={setAction}
+            options={[{ value: 'all', label: 'All actions' }, ...ACTIONS.map((a) => ({ value: a, label: actionWords(a) }))]}
+          />
         </div>
         <form
           className="flex items-end gap-2"

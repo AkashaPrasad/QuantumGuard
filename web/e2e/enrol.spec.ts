@@ -3,6 +3,7 @@ import { expect, test, MOBILE, PASSPHRASE, expectNoHorizontalScroll, mock } from
 
 async function toStep(page: Page, step: 1 | 2, code = 'KESTREL-AIKO') {
   await page.goto('/app/enrol?persona=none')
+  await expect(page.getByTestId('enrol-code')).toBeFocused() // the app has mounted
   await page.getByTestId('enrol-code').fill(code)
   await page.getByTestId('enrol-next').click()
   if (step === 2) {
@@ -148,13 +149,18 @@ test.describe('enrol a device', () => {
 
   test('Continue stays disabled until the code has 4 characters', async ({ page }) => {
     await page.goto('/app/enrol?persona=none')
+    await expect(page.getByTestId('enrol-code')).toBeFocused() // the app has mounted
     await expect(page.getByTestId('enrol-next')).toBeDisabled()
     await page.getByTestId('enrol-code').fill('abc')
     await expect(page.getByTestId('enrol-next')).toBeDisabled()
     await page.getByTestId('enrol-code').fill('abcd')
     await expect(page.getByTestId('enrol-next')).toBeEnabled()
-    // Typing is upper-cased for the person.
-    await expect(page.getByTestId('enrol-code')).toHaveValue('ABCD')
+  })
+
+  test('capitals do not matter: a lower-case code enrols', async ({ page }) => {
+    await toStep(page, 2, 'kestrel-aiko')
+    await createWith(page)
+    await expect(page.getByTestId('enrol-done')).toBeVisible()
   })
 
   test('a refresh in the middle of the form restarts at step 1 with nothing kept', async ({ page }) => {

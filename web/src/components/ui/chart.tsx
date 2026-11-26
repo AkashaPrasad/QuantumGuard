@@ -55,6 +55,15 @@ function ChartContainer({
 }) {
   const uniqueId = React.useId()
   const chartId = `chart-${id ?? uniqueId.replace(/:/g, "")}`
+  // Local change: series colours are set as CSS variables on the container
+  // through the style property. The stock component renders a <style> element,
+  // which the Content-Security-Policy (style-src 'self') forbids.
+  // Colours must therefore be theme-aware values such as var(--chart-1).
+  const colorVars = Object.fromEntries(
+    Object.entries(config).flatMap(([key, item]) =>
+      item.color ? [[`--color-${key}`, item.color]] : []
+    )
+  ) as React.CSSProperties
 
   return (
     <ChartContext.Provider value={{ config }}>
@@ -66,8 +75,8 @@ function ChartContainer({
           className
         )}
         {...props}
+        style={{ ...colorVars, ...props.style }}
       >
-        <ChartStyle id={chartId} config={config} />
         <RechartsPrimitive.ResponsiveContainer
           initialDimension={initialDimension}
         >
@@ -78,38 +87,8 @@ function ChartContainer({
   )
 }
 
-const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
-  const colorConfig = Object.entries(config).filter(
-    ([, config]) => config.theme ?? config.color
-  )
-
-  if (!colorConfig.length) {
-    return null
-  }
-
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
-${colorConfig
-  .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ??
-      itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
-  })
-  .join("\n")}
-}
-`
-          )
-          .join("\n"),
-      }}
-    />
-  )
-}
+/** Kept for API compatibility; it renders nothing (see the note in ChartContainer). */
+const ChartStyle = (_props: { id: string; config: ChartConfig }) => null
 
 const ChartTooltip = RechartsPrimitive.Tooltip
 
