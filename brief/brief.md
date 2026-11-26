@@ -2,7 +2,7 @@
 
 **After a device is reported lost, no request from it receives key material, every file whose key it received is listed and queued for new keys, and every decision is recorded in a log that verifies offline with public keys only.**
 
-Track 4: Trust, but verify. Repository: https://github.com/AkashaPrasad/QuantumGuard. Demo video (5 minutes): VIDEO_URL.
+Track 4: Trust, but verify. Repository: https://github.com/AkashaPrasad/QuantumGuard. Demo video (5 minutes): https://drive.google.com/file/d/1dvVt6pceQgQA0AMLYYeipy75qnwlVrb3/view?usp=sharing.
 
 ## The problem
 

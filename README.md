@@ -42,8 +42,9 @@ keys only.
 > QuantumGuard is a research prototype. It has not been audited, it stores keys in software, and it
 > is meant for synthetic data only. See the limits in [THREAT_MODEL.md](THREAT_MODEL.md).
 
-**Submission:** Track 4, *Trust, but verify*. Two-page brief with the USP, architecture, one-page threat
-model and the demo video link: [brief/brief.pdf](brief/brief.pdf) (source [brief/brief.md](brief/brief.md)).
+**Submission:** Team Underdawgs, Track 4, *Trust, but verify*. Two-page brief (USP, architecture, one-page
+threat model): [PDF](brief/QuantumGuard-Brief-Team-Underdawgs.pdf) · [Word](brief/QuantumGuard-Brief-Team-Underdawgs.docx).
+Demo video (5 minutes): [Google Drive](https://drive.google.com/file/d/1dvVt6pceQgQA0AMLYYeipy75qnwlVrb3/view?usp=sharing). Live instance: <https://quantum.spacesdrive.cc>.
 Evaluators: start with the [Quick start](#quick-start), then follow the [Evaluation guide](#evaluation-guide).
 
 ### Highlights
