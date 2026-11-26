@@ -104,7 +104,13 @@ The first seven items are the list shown on the public page.
     again.
 21. The local Docker stack serves plain HTTP on `127.0.0.1:8080`. Transport encryption is not part of
     any claim; the optional TLS profile is for local testing only.
-22. The prototype is unaudited apart from the internal review in section 6, was built in a short
+22. QG-R008 compares a person's key releases per minute with their own EWMA baseline, so a person who
+    rarely opens files and then opens a folder of ten or more within a minute is asked to prove their
+    session again (the only false alerts measured in section 7).
+23. QuantumGuard runs as one API node with one SQLite database. A revocation is committed with
+    `synchronous=FULL` before the report returns, and `make scenario-interrupt` shows it still holds
+    after the server is killed and restarted; running several API nodes is not supported or claimed.
+24. The prototype is unaudited apart from the internal review in section 6, was built in a short
     time, and is meant for synthetic data only.
 
 ## 5. Claims and tests
@@ -237,8 +243,13 @@ session (Low; test in C10).
 ## 7. Detection coverage
 
 Each rule is one file in `backend/qg/detect/rules/`; all fourteen are implemented and each has a test
-that runs with `make test-detect`. An alert names its rule, the condition in words and the receipts
-that matched (QG-R013 names the failing leaf index instead). Alerts are available at
+that runs with `make test-detect`. Every alert names the **identity** (`identity`: person and name,
+device, session; for failures before any key is proven, the source address and the claimed device or
+person), the **service** it concerns (`service`: for example `key-release`, `files`, `gateway`,
+`enrolment`, `evidence-log`) and the **event** that was observed (`event`: kind, time and details such
+as the file id or route), together with its rule, the condition in words and the receipts that matched
+(QG-R013 names the failing leaf index instead). `tests/detect/conftest.py::check_names` asserts these
+fields on the alert of every rule. Alerts are available at
 `GET /api/v1/alerts`, as JSON lines with `"event":"alert"` on the server's standard output, and in
 `SECURITY_EVENTS.jsonl` in the data directory (C54). An operator can lift every response except
 QG-R013's, which ends when an operator acknowledges the alert; nobody lifts a response that contains
@@ -263,6 +274,28 @@ them.
 | A suite other than `QG-1` is requested | QG-R014 | Medium | The request is refused with `QG_BAD_SUITE`; no further response | `tests/detect/test_qg_r014.py::test_unknown_suite_is_refused_and_alerted` |
 
 Specified, not yet implemented: none.
+
+### Measured detection quality
+
+`make bench-detect` (`bench/detection.py`, results in `bench/detection.json`) runs 10 rounds of a
+seeded benign workload (sign-in, protect, open, open a whole folder within a minute, share, messages,
+directory refresh, an approved two-person role change, runs of mistyped file ids) and injects
+160 labelled attacks at random points: one per rule scenario plus three variants the rules were not
+written against (replay of an older sequence number, enumeration mixing denied and not-found ids,
+forged handshake proofs instead of forged MACs). Every alert is attributed to the step that created it.
+
+| Measure | Value |
+|---|---|
+| Attacks detected (recall) | 160 of 160 (1.000) |
+| Precision | 0.964 (6 false alerts) |
+| F1 | 0.982 |
+| False alerts per 1,000 benign events | 1.164 (6 over 5,156 audited benign decisions) |
+| Time to alert, first malicious request to stored alert | median 16.33 ms, p95 44.09 ms, range 0.92–75.5 ms |
+
+All 6 false alerts are QG-R008: a person who normally opens a file now and then opened a folder of
+10–12 of their own files within one minute. The response is the mildest one (prove the session again);
+nothing is locked or lost. The workload and attacks are our own, so these numbers show the rules work as
+designed on synthetic traffic; they are not a measurement against attacks we have not imagined.
 
 ## 8. Server roles in a decision
 

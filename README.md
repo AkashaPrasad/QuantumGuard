@@ -14,6 +14,7 @@
 ![Status](https://img.shields.io/badge/status-research%20prototype-5A607A.svg)
 
 [Quick start](#quick-start) ·
+[Evaluation guide](#evaluation-guide) ·
 [Architecture](#architecture) ·
 [Cryptography](#cryptography-suite-qg-1) ·
 [Threat model](THREAT_MODEL.md) ·
@@ -41,6 +42,10 @@ keys only.
 > QuantumGuard is a research prototype. It has not been audited, it stores keys in software, and it
 > is meant for synthetic data only. See the limits in [THREAT_MODEL.md](THREAT_MODEL.md).
 
+**Submission:** Track 4, *Trust, but verify*. Two-page brief with the USP, architecture, one-page threat
+model and the demo video link: [brief/brief.pdf](brief/brief.pdf) (source [brief/brief.md](brief/brief.md)).
+Evaluators: start with the [Quick start](#quick-start), then follow the [Evaluation guide](#evaluation-guide).
+
 ### Highlights
 
 - **Two locks, two holders.** File keys are wrapped with X-Wing (X25519 + ML-KEM-768) for one device,
@@ -51,12 +56,14 @@ keys only.
   Merkle tree with checkpoints signed by both Ed25519 and ML-DSA-65. Proof bundles verify in the
   browser or the CLI with no network access.
 - **Explainable detection.** Fourteen deterministic rules, counters and a privilege graph, with no
-  machine learning. Each alert names its rule and receipts, and responses are scoped and liftable.
+  machine learning. Every alert names the identity, the service and the event, its rule and receipts;
+  responses are scoped and liftable. Measured F1 0.98 with 1.2 false alerts per 1,000 benign events.
 - **One container, Docker only.** The console, API and all tests run with Docker and Make on the host.
 
 ## Contents
 
 - [Quick start](#quick-start)
+- [Evaluation guide](#evaluation-guide)
 - [Testing](#testing)
 - [Scenarios](#scenarios)
 - [Recovery kit](#recovery-kit)
@@ -125,6 +132,108 @@ a device name and a passphrase. The seeded organisation, Kestrel Biolabs, is ent
 Add a second device from **Devices** (use a second browser profile). From the second device, **Report
 lost** on the first one opens the incident an operator follows under **Incidents**. Only the owner's
 devices re-key a file, so the owner signs in on a remaining device to finish re-keying.
+
+## Evaluation guide
+
+This section is written so that a reviewer or an automated pipeline can run every check from this
+README alone. Every command runs from the repository root, needs only Docker (with Compose v2), Bash,
+Make and Git, exits 0 on success and non-zero on failure, and prints machine-readable JSON where noted.
+
+### Step by step
+
+| # | Command | Pass criterion | Time (first run) |
+|---|---|---|---|
+| 1 | `docker compose up --build -d --wait` | exits 0; `docker compose ps` shows `quantumguard` as `healthy` | 3–8 min (image build) |
+| 2 | `curl -fsS http://127.0.0.1:8080/healthz` | exits 0 and prints a JSON object | < 1 s |
+| 3 | `make demo` | exits 0; the last line is JSON with `"scenario":"revoke","pass":true` | ~30 s |
+| 4 | `make test` | exits 0 (tooling tests, every Python suite, strict security suite, scenarios) | 5–10 min |
+| 5 | `make scenarios` | exits 0; six JSON lines, each with `"pass":true` | ~1 min |
+| 6 | `make scenario-messaging` | exits 0; one JSON line with `"pass":true` | ~10 s |
+| 7 | `docker compose exec -T quantumguard python -m qg.admin invite --all --json` | prints `{"invites":[…]}` with one single-use code per seeded person | < 2 s |
+| 8 | Open <http://localhost:8080> and enrol with a code from step 7 | the console opens on Overview or Files | manual |
+| 9 | `docker compose logs quantumguard \| grep '"event":"alert"'` | one JSON line per alert raised so far | < 1 s |
+| 10 | `docker compose down -v` | removes the stack, its data and its keys | < 10 s |
+
+Each scenario starts its own throwaway server inside the container, so steps 5 and 6 do not depend on
+what earlier steps did. `make demo` deliberately leaves its incident in the main server so it can be
+inspected in the console (**Incidents**, **Alerts**, **Evidence**).
+
+### Driving the system from a script
+
+The command-line client is installed in the container, so a pipeline can create test identities, act
+as them and read alerts without a browser. The keystore passphrase comes from `QG_PASSPHRASE`; keystores
+under `/tmp` live in the container's memory and disappear when it stops. The runtime image is hardened
+and has no shell, so every step is a single `python` command.
+
+```bash
+# 1. single-use enrolment codes for the six seeded people (Priya Raman is the operator)
+docker compose exec -T quantumguard python -m qg.admin invite --all --json
+
+# 2. enrol an operator device and an employee device (replace the codes with ones printed above)
+docker compose exec -T -e QG_PASSPHRASE=eval-passphrase quantumguard python -m qg.client enroll \
+  --server http://127.0.0.1:8080 --code PRIYA-CODE --device-name eval-operator --keystore /tmp/priya.qgkeystore --json
+docker compose exec -T -e QG_PASSPHRASE=eval-passphrase quantumguard python -m qg.client enroll \
+  --server http://127.0.0.1:8080 --code AIKO-CODE --device-name eval-laptop --keystore /tmp/aiko.qgkeystore --json
+
+# 3. act as the employee: protect a file and list devices
+docker compose exec -T quantumguard python -c "import os; open('/tmp/sample.bin', 'wb').write(os.urandom(4096))"
+docker compose exec -T -e QG_PASSPHRASE=eval-passphrase quantumguard python -m qg.client protect /tmp/sample.bin \
+  --name sample.bin --classification confidential --keystore /tmp/aiko.qgkeystore --json
+docker compose exec -T -e QG_PASSPHRASE=eval-passphrase quantumguard python -m qg.client devices --keystore /tmp/aiko.qgkeystore --json
+
+# 4. revoke the employee's device as the operator (time is RFC 3339, UTC), then show the device is refused
+docker compose exec -T -e QG_PASSPHRASE=eval-passphrase quantumguard python -m qg.client revoke DEVICE-ID \
+  --compromise-time 2026-01-01T00:00:00Z --reason "evaluation" --keystore /tmp/priya.qgkeystore --json
+docker compose exec -T -e QG_PASSPHRASE=eval-passphrase quantumguard python -m qg.client devices --keystore /tmp/aiko.qgkeystore
+#    -> exits 1 with QG_DENY_REVOKED
+
+# 5. read the alerts: each names the identity, the service and the event
+docker compose exec -T -e QG_PASSPHRASE=eval-passphrase quantumguard python -m qg.client alerts --keystore /tmp/priya.qgkeystore --json
+
+# 6. send an identity-provider signal (CAEP session-revoked, credential-change or device-compliance-change)
+docker compose exec -T -e QG_PASSPHRASE=eval-passphrase quantumguard python -m qg.client signal \
+  --type session-revoked --subject USER-ID --keystore /tmp/priya.qgkeystore --json
+```
+
+Integration points for mock services, synthetic logs and test identities:
+
+| Need | How |
+|---|---|
+| Test identities | `python -m qg.admin invite --all --json` for the seeded people; admins invite new people in the console (**People**) or with `POST /api/v1/invites` |
+| Identity-provider events | `POST /api/v1/signals` with a Security Event Token shaped body (`qg signal`): CAEP `session-revoked`, `credential-change`, `device-compliance-change`, and `urn:qg:event-type:privilege-observed` for roles seen in the identity source |
+| Service credentials | `POST /api/v1/services` creates a service with a key; `POST /api/v1/services/{id}/rotate` rotates it (routine or emergency); requests present it in `QG-Service-Key` |
+| Security event stream | JSON lines with `"event":"alert"` on the container's standard output, `SECURITY_EVENTS.jsonl` in the data volume, `GET /api/v1/alerts` and `qg alerts` |
+| Full API | [spec/API.md](spec/API.md) and [spec/openapi.json](spec/openapi.json); every byte format in [spec/SUITE.md](spec/SUITE.md) |
+
+### Checklist answers
+
+Every number below comes from a command in this repository; rerun it to reproduce.
+
+| Item | Value | Source |
+|---|---|---|
+| Grace period | Objects may name the previous directory epoch for **60 s**, never one from before a revocation (QG-R003). Key-release lease **60 s**; session idle timeout **600 s**, hard cap **3,600 s**; a routinely rotated service key keeps working for **600 s** | `backend/qg/crypto/suite.py`, `backend/qg/api/services.py` |
+| Revocation time (server) | median **11.5 ms**, p95 **16 ms**, range **2–17 ms** over 30 runs, from the start of the report handler to the committed revocation | `make bench` → `bench/latest.json` `time_to_enforce_ms` |
+| Revocation time (client) | median **16.4 ms**, p95 **20.9 ms**, range **5.1–21.5 ms**, from sending the loss report to the lost device's next request being refused | `make bench` → `report_to_denied_ms` |
+| Timing range of alerts | **0.92–75.5 ms** from an attack's first malicious request to its stored alert | `make bench-detect` → `bench/detection.json` |
+| F1 | **0.982** (precision 0.964, recall 1.000) over 160 injected attacks, including three variants the rules were not written against | `make bench-detect` |
+| Median time to alert | **16.33 ms** (p95 44.09 ms) | `make bench-detect` |
+| False alerts per 1,000 benign events | **1.164** (6 false alerts over 5,156 audited benign decisions; all QG-R008 when a person opened a folder of 10+ files within a minute) | `make bench-detect` |
+| Rejected on every node and after a crash or restart | One API node with one SQLite database (`synchronous=FULL`); the revocation commits before the report returns. `make scenario-interrupt` kills the server mid re-key, restarts it and shows the revoked device still refused and no key released to it. Several API nodes are not supported | `make scenario-interrupt`, `tests/reliability/` |
+| Every alert names the identity, service and event | `identity` (person and name, device, session; source address and claimed id before a key is proven), `service`, `event` (kind, time, details) on every alert, in the API, the logs and `SECURITY_EVENTS.jsonl` | `tests/detect/conftest.py::check_names`, `make test-detect` |
+| No hard-coded secrets | Server keys are generated on first start into the `keys` volume; enrolment codes come only from a local command; gitleaks scans the tree and the whole history in CI | `make scan-secrets` |
+| No AI/ML components | Fourteen fixed rules, counters and a privilege graph; `scripts/check_banned_deps.py` fails the build on any ML or LLM package | `make preflight`, `make scan` |
+| Vetted PQC library | ML-KEM-768 and ML-DSA-65 from `cryptography` 50.0.2 (OpenSSL 4.0.3) in Python and `@noble/post-quantum` 0.7.1 in the browser; official NIST ACVP, Wycheproof and X-Wing vectors pass | `make test-crypto` |
+
+### Where each scoring area is evidenced
+
+| Area | Evidence |
+|---|---|
+| Security correctness | `make test-crypto` (official vectors, properties), `make test-security` (172 negative and regression tests), [THREAT_MODEL.md](THREAT_MODEL.md) section 5 (each claim with its test) |
+| Live security assessment | Fourteen detection rules with scoped, liftable responses ([Detection rules](#detection-rules)); alerts in the console, the API, the logs and `qg alerts`; measured detection quality above |
+| Functionality and reliability | `make scenario-normal`, `scenario-revoke`, `scenario-interrupt` (crash and restart), `scenario-verify` (offline evidence); `make test-reliability` (1,000 concurrent requests racing a revocation) |
+| Threat model and honesty | [THREAT_MODEL.md](THREAT_MODEL.md): assets, attackers, assumptions, 24 stated limits, claims with tests, review findings |
+| Performance and overhead | [Performance](#performance), `make bench`, `make bench-detect` |
+| Usability and documentation | The console at <http://localhost:8080> with a guided tour; this README; [spec/](spec/) |
 
 ## Testing
 
@@ -295,21 +404,26 @@ response, but never one that contains themselves.
 
 ## Performance
 
-From [bench/latest.json](bench/latest.json) (12-core arm64, Python 3.12, loopback). Run `make bench` to
-measure on your machine.
+From [bench/latest.json](bench/latest.json) and [bench/detection.json](bench/detection.json), measured on
+a 12-core arm64 machine with Python 3.12, server and client on one host over loopback. Run `make bench`
+and `make bench-detect` to measure on your machine. Browser timings and idle memory are not measured.
 
-| Measure | Median | p95 | Target (p95) |
-|---|---|---|---|
-| Time to enforce a revocation | 3 ms | 7 ms | < 100 ms |
-| Slot release (client-measured) | 1.26 ms | 2.77 ms | < 20 ms |
-| Added latency of an authenticated request | 0.53 ms | 1.26 ms | < 3 ms |
-| Policy decision | 0.003 ms | 0.003 ms | < 5 ms |
-| Session handshake | 2.15 ms | 2.73 ms | |
-| Cold start | 0.32 s | | < 10 s |
-| Runtime image (unpacked) | 169 MB | | < 250 MB |
+| Measure | Median | p95 | Range | Target (p95) |
+|---|---|---|---|---|
+| Time to enforce a revocation (server, 30 runs) | 11.5 ms | 16 ms | 2–17 ms | < 100 ms |
+| Loss report sent to lost device refused (client, 30 runs) | 16.4 ms | 20.9 ms | 5.1–21.5 ms | |
+| Time to alert (160 attacks) | 16.33 ms | 44.09 ms | 0.92–75.5 ms | |
+| Slot release (client-measured) | 1.192 ms | 2.806 ms | | < 20 ms |
+| Added latency of an authenticated request | 0.6 ms | 1.459 ms | | < 3 ms |
+| Policy decision | 0.003 ms | 0.004 ms | | < 5 ms |
+| Session handshake | 3.0 ms | 4.064 ms | | |
+| Cold start | 0.319 s | | | < 10 s |
+| Runtime image (unpacked) | 169 MB | | | < 250 MB |
 
-Protect and open throughput on a 16 MiB file: 173.2 and 590.6 MB/s. Batched checkpoint signing costs
-0.44 ms per 1,000 receipts, against about 421 ms if each receipt were signed.
+Protect and open throughput on a 16 MiB file: 206.0 and 553.3 MB/s. The compressed
+image is 36.7 MiB. Size overhead: 28 bytes per 1 MiB chunk and
+125 bytes of headers per request. Batched checkpoint signing costs 0.29 ms per 1,000 receipts,
+against about 416 ms if each receipt were signed.
 
 ## Limitations
 
