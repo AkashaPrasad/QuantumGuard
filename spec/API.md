@@ -70,7 +70,7 @@ the lists in this file say which role is expected to be allowed, not a guarantee
 | Route | Returns |
 |---|---|
 | `GET /healthz` | `{"status":"ok"}` |
-| `GET /api/v1/meta` | `{suite, version, commit, demo, server_keys:{ed25519_pk, mldsa_pk, kem_pk}, recovery_pk, policy_bundle_hash, limits:{chunk_bytes, max_file_bytes, max_recipients, lease_seconds, session_ttl_seconds, session_hard_cap_seconds}, features:{messaging, slhdsa}}` |
+| `GET /api/v1/meta` | `{suite, version, commit, demo, server_keys:{ed25519_pk, mldsa_pk, kem_pk}, recovery_pk (`null` until a recovery kit has been issued), policy_bundle_hash, limits:{chunk_bytes, max_file_bytes, max_recipients, lease_seconds, session_ttl_seconds, session_hard_cap_seconds}, features:{messaging, slhdsa}}` |
 | `GET /api/v1/directory` | Current signed directory (3.1). `?epoch=n` returns that epoch or `QG_NOT_FOUND` |
 | `GET /api/v1/log/checkpoint` | Latest signed checkpoint (3.6) |
 | `GET /api/v1/keys` | Signed service key set (9) |
@@ -89,7 +89,7 @@ the lists in this file say which role is expected to be allowed, not a guarantee
  users:   [{user_id, name, roles[], status: "active"|"quarantined"|"disabled"}],
  devices: [{suite, device_id, user_id, name, kem_pk, sig_pk, created_at, expires_at, directory_epoch}],
  revoked: [{device_id, revoked_at, epoch}],
- recovery_pk,
+ recovery_pk,                       // null until a recovery kit has been issued
  signatures: {ed25519, mldsa}}
 ```
 
@@ -196,6 +196,9 @@ People are read from the directory (`users`). There is no separate user list rou
 - Commit failures: recipient not allowed by policy -> `QG_DENY_POLICY` / `recipient_not_allowed`;
   manifest signature -> `QG_BAD_SIGNATURE`; hash or chunk count mismatch -> `QG_INVALID_INPUT` /
   `ciphertext_mismatch`; old epoch -> `QG_STALE_EPOCH`; already committed -> `QG_CONFLICT`.
+- `recovery_wrap` is required once the directory carries a `recovery_pk` and must be absent before:
+  `QG_INVALID_INPUT` / `recovery_wrap_required` or `no_recovery_key`.
+- A lease is bound to the session that received it; a chunk read with another session's lease answers `QG_LEASE_EXPIRED`.
 - A file the caller may not see answers `QG_NOT_FOUND` on every route.
 
 ## 7. Devices and incidents
@@ -276,7 +279,7 @@ Approving your own request, or a request that targets you, answers `QG_DENY_POLI
 | `POST /services/{id}/rotate` | admin; operator with `emergency: true` | `{reason, emergency}` -> service; publishes a new signed key set |
 | `GET /messages` | everyone | `[{message_id, from:{user_id, name, device_id}, sent_at, envelope:{xwing_ct, ciphertext}, signature}]`: only the envelope addressed to the calling device; `signature` is the sender's, over the message statement in `spec/SUITE.md` |
 | `POST /messages` | everyone | `{to_user_id, envelopes:[{device_id, xwing_ct, ciphertext}], signature}` -> `{message_id}` |
-| `POST /files/{id}/recover` | admin holding the recovery kit | `{change_id}` -> `{recovery_wrap, manifest, manifest_sig}` only when that `recovery_release` change is applied |
+| `POST /files/{id}/recover` | admin holding the recovery kit | `{change_id}` -> `{recovery_wrap, wrap_epoch, version, file_id, manifest, manifest_sig, signer_device_id, lease:{lease_id, expires_at}, receipt_id}` only when that `recovery_release` change is applied. Each change releases once (`QG_CONFLICT` / `already_used`); a file committed before a kit existed answers `QG_NOT_FOUND` / `no_recovery_slot` |
 
 `GET /keys` (public) -> `{suite, epoch, keys:[{service_id, key_id, alg, public_key, status}], signatures:{ed25519, mldsa}}`.
 A retired key presented to any route answers `QG_DENY_POLICY` / `key_retired` and raises QG-R010.
@@ -285,6 +288,16 @@ A retired key presented to any route answers `QG_DENY_POLICY` / `key_retired` an
 
 On first start the server generates its keys into `keys/` and creates the synthetic organisation.
 It does not print or log any enrolment code: no secret ever appears in server output.
+
+The recovery kit is issued the same way, once, by whoever operates the server:
+
+```
+docker compose exec quantumguard python -m qg.admin recovery-kit init --out /tmp/recovery-kit.json
+```
+
+The private half goes to that command's output or the chosen file (never inside the data or keys
+volumes); the server keeps only the public half and publishes it in the next directory epoch. A second
+run is refused. Until a kit exists, files carry no recovery slot.
 
 Codes for the seeded people are issued by a local command that needs access to the data directory,
 which is the same trust as owning the server:
