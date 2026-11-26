@@ -47,7 +47,7 @@ describeVector<MerkleDoc>('merkle.json', (doc) => {
         expect(verifyInclusion(p.leaf_index, p.tree_size, other, path, root)).toBe(false)
         const bad = path.map((x, i) => (i === 0 ? leafHash(utf8('x')) : x))
         expect(verifyInclusion(p.leaf_index, p.tree_size, hashes[p.leaf_index], bad, root)).toBe(false)
-        expect(verifyInclusion(p.leaf_index, p.tree_size + 1, hashes[p.leaf_index], path, root)).toBe(false)
+        expect(verifyInclusion(p.leaf_index + p.tree_size, p.tree_size, hashes[p.leaf_index], path, root)).toBe(false)
       }
     }
   })
@@ -91,8 +91,9 @@ describeVector<CheckpointDoc>('checkpoint.json', (doc) => {
 
 const cpDoc = loadVector<CheckpointDoc>('checkpoint.json')
 
-describe.skipIf(!cpDoc)('proof bundle verification (local, uses checkpoint.json keys)', () => {
-  const sk = cpDoc!.server_keys
+describe.skipIf(!cpDoc)(`proof bundle verification (local, uses checkpoint.json keys${cpDoc ? '' : '; MISSING'})`, () => {
+  if (!cpDoc) return
+  const sk = cpDoc.server_keys
   const keys: ServerKeys = { ed25519_pk: sk.ed25519_pk, mldsa_pk: sk.mldsa_pk }
 
   function dualSign<T extends Record<string, unknown>>(obj: T, p: ServerPurpose): T & { signatures: { ed25519: string; mldsa: string } } {
@@ -144,8 +145,8 @@ describe.skipIf(!cpDoc)('proof bundle verification (local, uses checkpoint.json 
   function makeBundle(n = 7, revAt = 4) {
     const receipts = Array.from({ length: n }, (_, i) => receipt(i))
     const hs = receipts.map((r) => leafHash(canon(r)))
-    const cp = dualSign({ root_hash: b64u(rootFromLeafHashes(hs)), suite: 'QG-1', tree_size: n, ts: '2026-11-26T12:00:09.000Z' }, 'checkpoint')
-    const rcp = dualSign({ root_hash: b64u(rootFromLeafHashes(hs.slice(0, revAt))), suite: 'QG-1', tree_size: revAt, ts: '2026-11-26T12:00:05.000Z' }, 'checkpoint')
+    const cp = dualSign({ root_hash: b64u(rootFromLeafHashes(hs)), suite: 'QG-1' as const, tree_size: n, ts: '2026-11-26T12:00:09.000Z' }, 'checkpoint')
+    const rcp = dualSign({ root_hash: b64u(rootFromLeafHashes(hs.slice(0, revAt))), suite: 'QG-1' as const, tree_size: revAt, ts: '2026-11-26T12:00:05.000Z' }, 'checkpoint')
     const body = {
       format: 'qg-proof-bundle/1',
       suite: 'QG-1',
@@ -207,7 +208,7 @@ describe.skipIf(!cpDoc)('proof bundle verification (local, uses checkpoint.json 
 
   it('a wrong consistency proof fails', () => {
     const { body } = makeBundle()
-    const consistency = [...body.consistency].reverse()
+    const consistency = [b64u(leafHash(utf8('x'))), ...body.consistency.slice(1)]
     expect(verifyProofBundle(dualSign({ ...body, consistency }, 'report'), keys)).toMatchObject({ ok: false, reason: 'consistency_failed' })
   })
 

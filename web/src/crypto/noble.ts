@@ -156,8 +156,12 @@ export function createNobleProvider(opts: { useSubtle?: boolean } = {}): CryptoP
     return new Uint8Array(await subtle.digest('SHA-256', own(data)))
   }
 
+  /** CSPRNG bytes, drawn in 64 KiB pieces (the getRandomValues limit). */
   function randomBytes(n: number): Uint8Array {
-    return nobleRandom(n)
+    if (n <= 65536) return nobleRandom(n)
+    const out = new Uint8Array(n)
+    for (let o = 0; o < n; o += 65536) out.set(nobleRandom(Math.min(65536, n - o)), o)
+    return out
   }
 
   return {

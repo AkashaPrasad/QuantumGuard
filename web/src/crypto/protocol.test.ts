@@ -10,8 +10,8 @@ const prov = getProvider()
 
 interface TranscriptDoc {
   device: { kem_seed: string; sig_seed: string; kem_pk_b64u: string; sig_pk_b64u: string }
-  enroll: { fields: EnrolTranscriptInput; ss: string; transcript_hex: string; k_ec: string; key_confirm_b64u: string; signature_b64u: string }
-  session: { fields: SessionTranscriptInput; ss: string; transcript_hex: string; k_sc: string; k_mac: string; key_confirm_b64u: string; signature_b64u: string }
+  enroll: { fields: EnrolTranscriptInput; ss: string; transcript_hex: string; k_ec: string; confirmation_b64u?: string; key_confirm_b64u?: string; signature_b64u: string }
+  session: { fields: SessionTranscriptInput; ss: string; transcript_hex: string; k_sc: string; k_mac: string; confirmation_b64u?: string; key_confirm_b64u?: string; signature_b64u: string }
 }
 
 describeVector<TranscriptDoc>('transcripts.json', (doc) => {
@@ -31,7 +31,7 @@ describeVector<TranscriptDoc>('transcripts.json', (doc) => {
     expect(toHex(t)).toBe(e.transcript_hex)
     const kec = await deriveEnrolConfirmKey(ss, fromB64u(e.fields.challenge))
     expect(toHex(kec)).toBe(e.k_ec)
-    expect(b64u(await keyConfirm(kec, t))).toBe(e.key_confirm_b64u)
+    expect(b64u(await keyConfirm(kec, t))).toBe(e.confirmation_b64u ?? e.key_confirm_b64u)
     expect(verifyDevice(sigPk, 'enroll', t, fromB64u(e.signature_b64u))).toBe(true)
     expect(verifyDevice(sigPk, 'session', t, fromB64u(e.signature_b64u))).toBe(false)
     // our own hedged signature verifies under the same rule
@@ -48,7 +48,7 @@ describeVector<TranscriptDoc>('transcripts.json', (doc) => {
     const k = await deriveSessionKeys(ss, fromB64u(s.fields.challenge))
     expect(toHex(k.confirm)).toBe(s.k_sc)
     expect(toHex(k.mac)).toBe(s.k_mac)
-    expect(b64u(await keyConfirm(k.confirm, t))).toBe(s.key_confirm_b64u)
+    expect(b64u(await keyConfirm(k.confirm, t))).toBe(s.confirmation_b64u ?? s.key_confirm_b64u)
     expect(verifyDevice(sigPk, 'session', t, fromB64u(s.signature_b64u))).toBe(true)
     expect(verifyDevice(sigPk, 'enroll', t, fromB64u(s.signature_b64u))).toBe(false)
   })

@@ -25,7 +25,7 @@ export function Ident({
   if (!value) return <span className="text-muted-foreground">—</span>
   return (
     <span className={cn('inline-flex max-w-full items-center gap-1 align-middle', className)}>
-      <span className={cn('data text-[0.8125rem]', full ? 'break-all' : 'whitespace-nowrap')} title={full ? undefined : value}>
+      <span className={cn('data text-[0.8125rem] tracking-normal normal-case', full ? 'break-all' : 'whitespace-nowrap')} title={full ? undefined : value}>
         {full ? value : shortId(value)}
       </span>
       <button

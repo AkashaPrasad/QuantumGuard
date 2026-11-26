@@ -70,6 +70,7 @@ function assertWellFormed(s: string): void {
 function writeObject(o: Record<string, unknown>, depth: number): string {
   const keys = Object.keys(o)
   for (const k of keys) {
+    // oxlint-disable-next-line no-control-regex -- the ASCII/control ranges are the rule
     if (!/^[\x00-\x7f]*$/.test(k)) throw new CanonError('canon: non-ASCII key')
     if (o[k] === undefined) throw new CanonError(`canon: undefined member ${k}`)
   }
@@ -131,6 +132,7 @@ class StrictParser {
       this.ws()
       if (this.s[this.i] !== '"') throw new CanonError('json: expected key')
       const k = this.string()
+      // oxlint-disable-next-line no-control-regex -- the ASCII/control ranges are the rule
       if (!/^[\x00-\x7f]*$/.test(k)) throw new CanonError('json: non-ASCII key')
       if (seen.has(k)) throw new CanonError('json: duplicate key')
       seen.add(k)
@@ -164,6 +166,7 @@ class StrictParser {
     return out
   }
   string(): string {
+    // oxlint-disable-next-line no-control-regex -- the ASCII/control ranges are the rule
     const m = /^"(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"/.exec(this.s.slice(this.i))
     if (!m) throw new CanonError('json: bad string')
     this.i += m[0].length

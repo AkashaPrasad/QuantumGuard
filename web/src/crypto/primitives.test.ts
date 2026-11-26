@@ -2,6 +2,7 @@ import { ml_dsa65 } from '@noble/post-quantum/ml-dsa.js'
 import { ml_kem768 } from '@noble/post-quantum/ml-kem.js'
 import { describe, expect, it } from 'vitest'
 import { concat, fromHex, toHex, utf8 } from './bytes'
+import { detectNativePq } from './native'
 import { createNobleProvider } from './noble'
 import { getProvider } from './provider'
 import { describeVector } from './test-vectors'
@@ -69,6 +70,11 @@ describeVector<MlDsaDoc>('mldsa65.json', (doc) => {
 })
 
 describe('provider (local)', () => {
+  it('native PQ detection reports booleans and never throws', async () => {
+    const r = await detectNativePq()
+    expect(typeof r.mlkem).toBe('boolean')
+    expect(typeof r.mldsa).toBe('boolean')
+  })
   it('Web Crypto and noble paths give identical bytes', async () => {
     const a = createNobleProvider({ useSubtle: true })
     const b = createNobleProvider({ useSubtle: false })

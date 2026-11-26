@@ -15,6 +15,7 @@ import {
   sealMessage,
   signManifest,
   unwrapDek,
+  unwrapDekAny,
   verifyManifest,
   verifyShare,
   wrapBinding,
@@ -75,7 +76,7 @@ describeVector<EnvelopeDoc>('envelope.json', (doc) => {
       expect(b.length).toBe(c.len)
       expect(toHex(prov.sha256Sync(b))).toBe(c.sha256)
       expect(toHex(b.subarray(0, 48))).toBe(c.head_hex)
-      expect(toHex(b.subarray(b.length - 48))).toBe(c.tail_hex)
+      expect(toHex(b.subarray(Math.max(0, b.length - 48)))).toBe(c.tail_hex)
       if (c.blob_hex) expect(toHex(b)).toBe(c.blob_hex)
     }
     expect(ciphertextSha256(blobs)).toBe(f.ciphertext_sha256_b64u)
@@ -182,6 +183,18 @@ describe('envelope properties (local)', () => {
       await expect(unwrapDek(kp.seed, w, { ...binding, ...change })).rejects.toThrow()
     }
     await expect(unwrapDek(prov.xwingKeygen().seed, w, binding)).rejects.toThrow()
+  })
+
+  it('a share wrap bound to a later epoch opens through the candidate list, only for its device', async () => {
+    const dek = prov.randomBytes(32)
+    const kp = prov.xwingKeygen()
+    const w = await wrapDek(kp.publicKey, dek, wrapBinding(fileId, 1, 'dev_A', 7))
+    const cands = [5, 6, 7, 8].map((e) => wrapBinding(fileId, 1, 'dev_A', e))
+    const r = await unwrapDekAny(kp.seed, w, cands)
+    expect(r.binding.directory_epoch).toBe(7)
+    expect(toHex(r.dek)).toBe(toHex(dek))
+    await expect(unwrapDekAny(kp.seed, w, [5, 6].map((e) => wrapBinding(fileId, 1, 'dev_A', e)))).rejects.toThrow()
+    await expect(unwrapDekAny(kp.seed, w, [7].map((e) => wrapBinding(fileId, 1, 'dev_B', e)))).rejects.toThrow()
   })
 
   it('manifest recipients are sorted, unique and never recovery', () => {

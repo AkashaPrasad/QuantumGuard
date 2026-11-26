@@ -179,6 +179,37 @@ export async function unwrapDek(kemSeed: Uint8Array, wrap: InnerWrap, binding: W
   }
 }
 
+/**
+ * SUITE.md 7.2 / 7.6: decapsulate once and try each candidate binding in order. A wrap added by a
+ * share is bound to the share statement's epoch (7.2), which the slot does not carry, so the opener
+ * tries the manifest's epoch first and then later epochs. Returns the DEK and the binding that opened.
+ */
+export async function unwrapDekAny(kemSeed: Uint8Array, wrap: InnerWrap, bindings: WrapBinding[], prov: CryptoProvider = getProvider()): Promise<{ dek: Uint8Array; binding: WrapBinding }> {
+  let ct: Uint8Array, wrapped: Uint8Array
+  try {
+    ct = fromB64u(wrap.xwing_ct, XWING_CT_BYTES)
+    wrapped = fromB64u(wrap.wrapped_dek, WRAPPED_DEK_LEN)
+  } catch {
+    throw new EnvelopeError('bad wrap')
+  }
+  const ss = prov.xwingDecapsulate(ct, kemSeed)
+  const kek = await wrapKey(ss, prov)
+  try {
+    for (const b of bindings) {
+      try {
+        const dek = await prov.aesGcmDecrypt(kek, wrapped.slice(0, NONCE_LEN), wrapped.subarray(NONCE_LEN), canon(b))
+        return { dek, binding: b }
+      } catch {
+        // try the next binding
+      }
+    }
+    throw new EnvelopeError('wrap failed authentication')
+  } finally {
+    ss.fill(0)
+    kek.fill(0)
+  }
+}
+
 // ---- 7.4 manifest ---------------------------------------------------------------------------
 
 export interface Manifest {

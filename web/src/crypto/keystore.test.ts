@@ -11,7 +11,8 @@ const prov = getProvider()
 interface KeystoreDoc {
   passphrase: string
   passphrase_nfd: string
-  argon2_key: string
+  argon2_key?: string
+  argon2_output?: string
   aad_hex: string
   sig_seed: string
   kem_seed: string
@@ -21,7 +22,7 @@ interface KeystoreDoc {
 
 describeVector<KeystoreDoc>('keystore.json', (doc) => {
   it('derives the Argon2id key and the header AAD', async () => {
-    expect(toHex(await deriveKeystoreKey(doc.passphrase, doc.keystore.kdf))).toBe(doc.argon2_key)
+    expect(toHex(await deriveKeystoreKey(doc.passphrase, doc.keystore.kdf))).toBe(doc.argon2_output ?? doc.argon2_key)
     const header: Record<string, unknown> = { ...doc.keystore }
     delete header.ciphertext
     expect(toHex(canon(header))).toBe(doc.aad_hex)

@@ -273,8 +273,12 @@ export interface Change {
   requested_by: { user_id: string; name: string; device_id: string }
   requested_at: string
   status: 'pending' | 'applied' | 'rejected'
-  approvals: { user_id: string; name: string; device_id: string; at: string }[]
+  approvals: { user_id: string; name: string; device_id: string; at: string; signature?: string }[]
   approvals_required: number
+  /** The exact statement the requester signed, its hash and signature (spec/API.md section 8). */
+  change?: Record<string, unknown>
+  change_hash?: string
+  signature?: string
 }
 
 export interface ServiceKey {
@@ -313,6 +317,8 @@ export interface Policy {
   version: number
   signed_at: string
   signatures: Signatures
+  /** b64u of the exact signed bundle bytes. */
+  document?: string
   rules: PolicyRule[]
 }
 
