@@ -40,6 +40,9 @@ class Database:
         cols = {r[1] for r in self._conn.execute("PRAGMA table_info(leases)")}
         if "kind" not in cols:
             self._conn.execute("ALTER TABLE leases ADD COLUMN kind TEXT NOT NULL DEFAULT 'slot'")
+        cols = {r[1] for r in self._conn.execute("PRAGMA table_info(invites)")}
+        if "created_by_device" not in cols:
+            self._conn.execute("ALTER TABLE invites ADD COLUMN created_by_device TEXT")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:

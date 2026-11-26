@@ -206,8 +206,7 @@ def authenticate(core: Core, request: Request, body: bytes, receipt_action: str 
             tag = b""
         if kept is None or not kdf.verify_hmac384(kept[0], mi, tag):
             if kept is not None:
-                core.emit_now("mac_failure", {"user_id": None, "device_id": None, "session_id": None}, [],
-                              kind="request_mac", source=client_ip(request))
+                core.note_unproven_failure("request_mac", client_ip(request), revoked_row["device_id"])
             raise QGError("QG_NO_SESSION", "unknown_session")
         if not core.secrets.advance_revoked(sid, seq):
             raise QGError("QG_NO_SESSION", "unknown_session")
@@ -223,8 +222,9 @@ def authenticate(core: Core, request: Request, body: bytes, receipt_action: str 
         tag = b""
     subject = {"user_id": row["user_id"], "device_id": row["device_id"], "session_id": sid}
     if not kdf.verify_hmac384(k_mac, mi, tag):
-        # M3: a bad MAC proves no key, so QG-R012 counts it against the source address, never this session
-        core.emit_now("mac_failure", subject, kind="request_mac", source=client_ip(request))
+        # M3/N4: a bad MAC proves no key: QG-R012 counts it against the source for this claimed device (bounded per
+        # address), never against the session or device itself
+        core.note_unproven_failure("request_mac", client_ip(request), row["device_id"])
         raise QGError("QG_BAD_MAC", "bad_mac")
 
     with core.db.tx() as conn:

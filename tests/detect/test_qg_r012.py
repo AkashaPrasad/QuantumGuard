@@ -13,8 +13,9 @@ from qg.crypto.suite import SUITE
 from .conftest import check_explanation, check_response, lift, only_alert
 
 
-def test_bad_mac_burst_blocks_the_source_not_the_session(env):
+def test_bad_mac_burst_blocks_only_that_source_and_claim(env):
     aiko = env.device("Aiko Tanaka")
+    priya = env.device("Priya Raman")
     good = aiko.session.k_mac
     aiko.session.k_mac = bytes(48)
     try:
@@ -22,21 +23,29 @@ def test_bad_mac_burst_blocks_the_source_not_the_session(env):
             r = aiko.raw_request("GET", "/api/v1/devices")
             assert r.status_code == 401 and r.json()["error"]["code"] == "QG_BAD_MAC", i
             if i < 4:
-                assert not env.alerts()
+                assert not env.alerts("QG-R012")
+        for _ in range(50):  # further forged MACs are bounded: no second alert
+            aiko.raw_request("GET", "/api/v1/devices")
     finally:
         aiko.session.k_mac = good
 
     alert = only_alert(env, "QG-R012")
-    assert alert["severity"] == "medium"
+    assert alert["severity"] == "medium" and alert["subject"]["session_id"] is None
     check_explanation(alert, receipts=False)  # a failed MAC is refused before any receipt exists
-    assert alert["response"] is None and alert["subject"]["session_id"] is None
-    # the named session keeps working ...
+    check_response(alert, "throttle", "source", f"testclient|{aiko.device_id}")
+    # the named session keeps working and its device can still sign in with a correct proof
     assert [aiko.raw_request("GET", "/api/v1/devices").status_code for _ in range(10)] == [200] * 10
-    # ... while the source address cannot start new handshakes for five minutes
-    r = env.http.post("/api/v1/session/start", json={"suite": SUITE, "device_id": aiko.device_id})
+    aiko.login()
+    # a wrong proof for that device from that source is refused without being recorded again
+    s = env.http.post("/api/v1/session/start", json={"suite": SUITE, "device_id": aiko.device_id}).json()
+    r = env.http.post("/api/v1/session/finish", json={"start_id": s["start_id"], "signature": b64u(os.urandom(3309)),
+                                                      "key_confirm": b64u(os.urandom(48))})
     assert r.status_code == 429 and r.json()["error"]["reason"] == "source_throttled"
-    env.clock.advance(301)
-    assert env.http.post("/api/v1/session/start", json={"suite": SUITE, "device_id": aiko.device_id}).status_code == 200
+    lift(env, priya, alert)  # an operator can lift it
+    s = env.http.post("/api/v1/session/start", json={"suite": SUITE, "device_id": aiko.device_id}).json()
+    r = env.http.post("/api/v1/session/finish", json={"start_id": s["start_id"], "signature": b64u(os.urandom(3309)),
+                                                      "key_confirm": b64u(os.urandom(48))})
+    assert r.status_code == 400
 
 
 def test_handshake_proof_failures_never_throttle_the_claimed_device(env):
@@ -46,8 +55,10 @@ def test_handshake_proof_failures_never_throttle_the_claimed_device(env):
         env.http.post("/api/v1/session/finish", json={"start_id": s["start_id"], "signature": b64u(os.urandom(3309)),
                                                       "key_confirm": b64u(os.urandom(48))})
     alert = only_alert(env, "QG-R012")
-    assert alert["response"] is None and alert["subject"]["device_id"] is None
+    check_response(alert, "throttle", "source", f"testclient|{priya.device_id}")
+    assert alert["subject"]["device_id"] is None
     assert [priya.raw_request("GET", "/api/v1/devices").status_code for _ in range(10)] == [200] * 10
+    priya.login()  # a correct proof is never refused because of someone else's failures
 
 
 def test_signature_failures_on_a_session_throttle_that_session(env):

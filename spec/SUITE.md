@@ -205,11 +205,20 @@ QG-MAC    = b64u(HMAC-SHA-384(K_mac, mac_input))
   naming the session answers `QG_NO_SESSION` and writes nothing. Likewise `/session/finish` for a revoked
   device records an attempt only when the transcript signature verifies under that device's `sig_pk`;
   otherwise it answers `QG_BAD_SIGNATURE` and writes nothing about the device.
-- **Failures that prove no key** (a bad request MAC, a failed handshake proof) are attributed to the caller's
-  network address, never to the session or device they name. Five in 60 s raise QG-R012 and refuse new
-  handshakes (`/enroll/*`, `/session/*`) from that address for 300 s (`QG_RATE_LIMITED` / `source_throttled`).
-  Signature failures on an authenticated session (manifest, share, change, approval, message) throttle that
-  session. No address range is ever blocked.
+- **Failures that prove no key** (a bad request MAC, a failed handshake proof) are attributed to their
+  *source*: the caller's network address together with the device (or, for enrolment, the person) they claim,
+  never to that device or session itself. They feed QG-R012 through a per-address bucket (10, then one per
+  second). Five in 60 s raise one alert whose response is `throttle` with scope `source` and id
+  `<address>|<claim>`, for 300 s, liftable by an operator; repeats merge into that alert while it is active.
+  While it is active, further *failed* proofs and bad MACs from that address for that claim answer
+  `QG_RATE_LIMITED` / `source_throttled` (or `QG_BAD_MAC`) without being recorded again. A correct proof is
+  always verified first and accepted, so nobody is refused because of someone else's failures, and other
+  devices behind the same address are unaffected. Signature failures on an authenticated session (manifest,
+  share, change, approval, message) throttle that session. No address range is ever blocked.
+- **Client address behind a proxy.** The address is the TCP peer unless `QG_TRUSTED_PROXIES` (comma-separated
+  addresses, default `127.0.0.1`) names the peer, in which case `X-Forwarded-For` is used. A deployment behind
+  a reverse proxy (the TLS profile's Caddy, the Cloudflare Worker) must set it to the proxy's address and must
+  have the proxy overwrite, not append to, client-supplied forwarding headers.
 
 Vectors: `spec/vectors/request_mac.json`.
 
@@ -267,11 +276,13 @@ manifest_sig = b64u(ML-DSA.Sign(device_sig_sk, canon(manifest), "QG/v1/manifest"
 ```
 
 `recipients` is sorted ascending by byte value, unique, never contains `recovery`, and MUST equal
-the set of `device_id` in the commit's `wraps`. A version with `reason: "rekey"` created or committed by
-anyone other than the file's owner needs a re-key job pending for the current version, and its recipients
-MUST equal exactly the set `/rekey/pending` lists (active devices holding a slot on the current version);
-otherwise `QG_DENY_POLICY` / `recipient_not_allowed` (or `no_pending_rekey` when the version is created) and
-nothing is committed. The recovery wrap is always present and separate.
+the set of `device_id` in the commit's `wraps`. Only the owner's devices create or commit versions after
+the first (`reason: "update"` or `"rekey"`), because the server cannot check that re-encrypted content is
+unchanged; any other holder gets `QG_DENY_POLICY` / `owner_required`. The recovery wrap therefore always comes
+from the owner. A re-key committed while a job is pending MUST name exactly the active devices holding a slot
+on the current version (`QG_DENY_POLICY` / `recipient_not_allowed`), so nobody is dropped and nobody removed
+by an unshare or revocation is added back. `/rekey/pending` lists re-key jobs to the owner's devices only;
+a job waits (and its incident stays `rekeying`) until an owner device runs it. The recovery wrap is always present and separate.
 The server verifies the signature against the committing device's `sig_pk`, the hash and chunk
 count against the stored chunks, every recipient against policy, and the epoch (section 8.4).
 
@@ -449,8 +460,10 @@ earlier key at once.
 
 ## 12a. Revocation side effects and automatic responses
 
-- The revocation transaction also cancels every pending enrolment code of the device's person, including
-  codes the lost device minted itself; the person mints a new code from a trusted device.
+- The revocation transaction also cancels every pending enrolment code that is for the device's person, or
+  was created by that person (on any device) or by that device, for anyone. The person mints a new code from
+  a trusted device. Devices already enrolled with a code before the report are not revoked by it (limit:
+  the operator reviews recent enrolments).
 - An automatic response cannot be lifted by the person it contains (its session, one of their devices, or
   their identity): `QG_DENY_POLICY` / `self_lift`. An admin may lift a response that contains an operator.
 

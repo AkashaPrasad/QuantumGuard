@@ -133,7 +133,7 @@ SCHEMAS: dict[str, dict[str, Any]] = {
         "response": {"oneOf": [{"type": "null"}, _obj({
             "id": ID, "action": {"enum": ["deny", "end_session", "quarantine_device", "quarantine_identity", "throttle",
                                           "require_fresh_session", "hold_enrolment", "freeze_key_release", "none"]},
-            "scope": _obj({"kind": {"enum": ["session", "device", "identity", "credential", "global"]},
+            "scope": _obj({"kind": {"enum": ["session", "device", "identity", "credential", "source", "global"]},
                            "id": {"type": ["string", "null"]}}),
             "expires_at": {"type": ["string", "null"]}, "lifted_at": {"type": ["string", "null"]},
             "lifted_by": {"type": ["string", "null"]}})]},

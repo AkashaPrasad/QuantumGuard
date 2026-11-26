@@ -131,6 +131,7 @@
                     "device",
                     "identity",
                     "credential",
+                    "source",
                     "global"
                   ]
                 }

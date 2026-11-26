@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS directory (
 CREATE TABLE IF NOT EXISTS invites (
   invite_id TEXT PRIMARY KEY, code_hash BLOB NOT NULL UNIQUE, user_id TEXT NOT NULL REFERENCES users(user_id),
   created_by TEXT, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, status TEXT NOT NULL,
-  bootstrap INTEGER NOT NULL DEFAULT 0, used_at TEXT, used_by_device TEXT);
+  bootstrap INTEGER NOT NULL DEFAULT 0, used_at TEXT, used_by_device TEXT, created_by_device TEXT);
 CREATE TABLE IF NOT EXISTS enrol_holds (
   hold_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, incident_id TEXT, created_at TEXT NOT NULL, lifted_at TEXT);
 

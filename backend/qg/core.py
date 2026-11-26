@@ -37,20 +37,7 @@ PUBLIC_RATE = (0.5, 20.0)  # per client address on public handshake routes: 30 p
 class TokenBuckets:
     def __init__(self) -> None:
         self._b: dict[str, list[float]] = {}
-        self._blocked: dict[str, float] = {}
         self._lock = threading.Lock()
-
-    def block(self, key: str, until: float) -> None:
-        with self._lock:
-            self._blocked[key] = max(until, self._blocked.get(key, 0.0))
-
-    def blocked_for(self, key: str, now: float) -> float:
-        with self._lock:
-            until = self._blocked.get(key)
-            if until is None or until <= now:
-                self._blocked.pop(key, None)
-                return 0.0
-            return until - now
 
     def take(self, key: str, rate: float, burst: float, now: float) -> float:
         """Take one token. Returns 0 when allowed, else seconds until a token is available."""
@@ -278,15 +265,16 @@ class Core:
 
     # ---- invites -----------------------------------------------------------------------------
 
-    def create_invite(self, conn: sqlite3.Connection, user_id: str, created_by: str | None) -> dict[str, Any]:
+    def create_invite(self, conn: sqlite3.Connection, user_id: str, created_by: str | None,
+                      created_by_device: str | None = None) -> dict[str, Any]:
         now = self.clock.now()
         code = new_code()
         invite_id = new_id("inv")
         expires = fmt(now + timedelta(seconds=INVITE_SECONDS))
         conn.execute(
-            "INSERT INTO invites (invite_id, code_hash, user_id, created_by, created_at, expires_at, status, bootstrap)"
-            " VALUES (?,?,?,?,?,?,?,0)",
-            (invite_id, code_hash(code), user_id, created_by, fmt(now), expires, "pending"),
+            "INSERT INTO invites (invite_id, code_hash, user_id, created_by, created_by_device, created_at, expires_at,"
+            " status, bootstrap) VALUES (?,?,?,?,?,?,?,?,0)",
+            (invite_id, code_hash(code), user_id, created_by, created_by_device, fmt(now), expires, "pending"),
         )
         return {"invite_id": invite_id, "code": code, "user_id": user_id, "expires_at": expires}
 
@@ -433,12 +421,28 @@ class Core:
                 (alert_id, r.scope_id, None, self.clock.iso()),
             )
 
-    def block_handshakes(self, address: str, seconds: float) -> None:
-        """QG-R012 for failures that prove no key (bad MACs, failed handshake proofs): the source address may not
-        start handshakes for a while. It never touches the device or session the failures claimed."""
-        until = self.clock.monotonic() + seconds
-        for bucket in ("enroll", "session"):
-            self.buckets.block(f"{bucket}:{address}", until)
+    def source_blocked(self, address: str, claim: str | None) -> bool:
+        """True while a QG-R012 response is active for failures from `address` that claimed `claim` (a device or
+        person). It only ever short-circuits *failed* proofs and bad MACs from that source for that claim; a
+        correct proof is verified first and never refused because of it. Operators can lift it."""
+        if not claim:
+            return False
+        row = self.db.one(
+            "SELECT 1 FROM responses WHERE scope_kind = 'source' AND scope_id = ? AND lifted_at IS NULL"
+            " AND (expires_at IS NULL OR expires_at > ?) LIMIT 1", (f"{address}|{claim}", self.clock.iso()))
+        return row is not None
+
+    def note_unproven_failure(self, kind: str, address: str, claim: str | None, receipt_ids: list[str] | None = None) -> bool:
+        """Feed a failure that proves no key to QG-R012, bounded: nothing is emitted while the source is already
+        blocked for this claim, and at most 10 then one per second per address (N4). Returns True if emitted."""
+        if self.source_blocked(address, claim):
+            return False
+        if self.buckets.take(f"unproven:{address}", 1.0, 10.0, self.clock.monotonic()) > 0:
+            return False
+        event = "mac_failure" if kind == "request_mac" else "signature_failure"
+        self.emit_now(event, {"user_id": None, "device_id": None, "session_id": None}, receipt_ids or [],
+                      kind=kind, source=address, claim=claim)
+        return True
 
     def lift_response(self, conn: sqlite3.Connection, response_id: str, by_user: str, reason: str) -> None:
         row = conn.execute("SELECT action, scope_kind, scope_id FROM responses WHERE id = ?", (response_id,)).fetchone()

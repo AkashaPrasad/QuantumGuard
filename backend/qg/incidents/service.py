@@ -107,8 +107,10 @@ def revoke(core: Core, conn: sqlite3.Connection, *, device_id: str, compromise_t
     conn.execute("UPDATE leases SET cancelled = 1 WHERE device_id = ?", (device_id,))
     # M1: codes the lost device may have minted (and any other pending code for this person) die with it; the
     # person mints a new one from a trusted device
-    invites_cancelled = conn.execute("UPDATE invites SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'",
-                                     (dev["user_id"],)).rowcount
+    # N3: also every code the lost device (or its person, from any device) minted for other people
+    invites_cancelled = conn.execute(
+        "UPDATE invites SET status = 'cancelled' WHERE status = 'pending' AND (user_id = ? OR created_by = ?"
+        " OR created_by_device = ?)", (dev["user_id"], dev["user_id"], device_id)).rowcount
     directory = core.directory.publish(conn, "revoke", revocation=True)
     incident_id = new_id("inc")
     action = "device.report_lost" if via == "report_lost" else "device.revoke"
@@ -131,7 +133,8 @@ def revoke(core: Core, conn: sqlite3.Connection, *, device_id: str, compromise_t
              f"{invites_cancelled} pending enrolment codes cancelled; directory epoch {directory['epoch']}.")
     counts = classify(core, conn, incident_id, device_id, compromise_time, slot_files)
     timeline(core, conn, incident_id, "scoped", None,
-             f"{counts['exposed']} exposed, {counts['held']} held, {counts['never_released']} never released.")
+             f"{counts['exposed']} exposed, {counts['held']} held, {counts['never_released']} never released."
+             + owners_note(conn, incident_id))
     core.emit(conn, "device_revoked", subject, [rc["id"]], device_id=device_id, user_id=dev["user_id"],
               incident_id=incident_id)
     return {
@@ -145,6 +148,22 @@ def revoke(core: Core, conn: sqlite3.Connection, *, device_id: str, compromise_t
         "checkpoint": checkpoint,
         "receipt_id": rc["id"],
     }
+
+
+def owners_note(conn: sqlite3.Connection, incident_id: str) -> str:
+    """Only a file's owner re-keys it (N1): say who must act, and who cannot because no device of theirs is left."""
+    owners = [r[0] for r in conn.execute(
+        "SELECT DISTINCT f.owner_user_id FROM incident_files i JOIN files f ON f.file_id = i.file_id"
+        " WHERE i.incident_id = ? AND i.rekey = 'pending'", (incident_id,))]
+    if not owners:
+        return ""
+    stranded = sum(1 for o in owners if conn.execute(
+        "SELECT 1 FROM devices WHERE user_id = ? AND status = 'active' LIMIT 1", (o,)).fetchone() is None)
+    note = f" Re-keys wait for {len(owners)} owner(s) to sign in on a remaining device."
+    if stranded:
+        note += (f" {stranded} owner(s) have no active device left: they need a new device and a share from another"
+                 " holder, or a recovery release.")
+    return note
 
 
 def rescope(core: Core, conn: sqlite3.Connection, incident: sqlite3.Row, compromise_time: str,

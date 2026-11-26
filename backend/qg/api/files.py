@@ -234,17 +234,24 @@ def create_version(file_id: str, request: Request, ctx: Ctx = gateway(),
         raise QGError("QG_INVALID_INPUT", "chunk_count")
     with core.db.tx() as conn:
         live(core, conn, ctx)
+        early = file_row(conn, file_id)
+        if (early is not None and not early["is_decoy"] and early["owner_user_id"] != ctx.user_id
+                and person_has_slot(conn, file_id, ctx.user_id)):
+            # N1: a holder who is not the owner is told why, before the generic policy refusal
+            rid = core.deny_receipt(ctx, "rekey.commit" if body.reason == "rekey" else "file.commit", "owner_required",
+                                    file_id, key_epoch=early["current_version"])
+            raise QGError("QG_DENY_POLICY", "owner_required", receipt_id=rid)
         row, facts = access(core, conn, ctx, file_id, "file.version")
         if row["current_version"] == 0:
             raise QGError("QG_CONFLICT", "not_committed")
-        if body.reason == "update" and not facts["owner"]:
-            raise QGError("QG_DENY_POLICY", "policy_denied")
+        if not facts["owner"]:
+            # N1: only the owner's devices create new versions (update or rekey): the server cannot check that a
+            # re-encrypted file still has the same content, so a holder must not be able to replace it
+            rid = core.deny_receipt(ctx, "rekey.commit" if body.reason == "rekey" else "file.commit",
+                                    "owner_required", file_id, key_epoch=row["current_version"])
+            raise QGError("QG_DENY_POLICY", "owner_required", receipt_id=rid)
         if body.reason == "rekey" and not facts["has_slot"]:
             raise QGError("QG_DENY_POLICY", "policy_denied")
-        if body.reason == "rekey" and not facts["owner"] and \
-                pending_rekey_recipients(conn, file_id, row["current_version"]) is None:
-            rid = core.deny_receipt(ctx, "rekey.commit", "no_pending_rekey", file_id, key_epoch=row["current_version"])
-            raise QGError("QG_DENY_POLICY", "no_pending_rekey", receipt_id=rid)
         nv = conn.execute("SELECT MAX(version) FROM file_versions WHERE file_id = ?", (file_id,)).fetchone()[0] + 1
         # one pending version at a time per file: an abandoned upload is replaced
         for old in conn.execute("SELECT version FROM file_versions WHERE file_id = ? AND status = 'pending'",
@@ -429,11 +436,16 @@ def commit_version(file_id: str, version: PathInt, request: Request, ctx: Ctx = 
         raise QGError("QG_STALE_EPOCH", "stale_epoch", receipt_id=rid)
     with core.db.tx() as conn:
         live(core, conn, ctx)
-        if reason == "rekey" and row["owner_user_id"] != ctx.user_id:
-            # H1: a holder may only re-key a file that has a pending job, for exactly the remaining recipients
-            expected = pending_rekey_recipients(conn, file_id, conn.execute(
-                "SELECT current_version FROM files WHERE file_id = ?", (file_id,)).fetchone()[0])
-            if expected is None or expected != recips:
+        current = conn.execute("SELECT current_version FROM files WHERE file_id = ?", (file_id,)).fetchone()[0]
+        if current and row["owner_user_id"] != ctx.user_id:
+            # N1: versions after the first (update, rekey) are the owner's alone
+            rid = core.deny_receipt(ctx, action, "owner_required", file_id)
+            raise QGError("QG_DENY_POLICY", "owner_required", receipt_id=rid)
+        if reason == "rekey":
+            # H1: a re-key is for exactly the remaining active holders when a job is pending (no one is dropped
+            # and no one removed by an unshare or revocation is added back)
+            expected = pending_rekey_recipients(conn, file_id, current)
+            if expected is not None and expected != recips:
                 rid = core.deny_receipt(ctx, action, "recipient_not_allowed", file_id)
                 raise QGError("QG_DENY_POLICY", "recipient_not_allowed", receipt_id=rid)
         _check_recipients(core, conn, ctx, file_id, m.classification, recips, action)
@@ -671,10 +683,11 @@ def rekey_pending(request: Request, ctx: Ctx = gateway()) -> dict:
         authorize(core, conn, ctx, "rekey.list")
         rekeys = []
         order = {"exposed": 0, "held": 1, "unshare": 2}
+        # N1: re-key jobs go to the owner's devices only; they wait until an owner device runs them
         jobs = conn.execute(
             "SELECT j.*, f.name, f.current_version FROM rekey_jobs j JOIN files f ON f.file_id = j.file_id"
             " WHERE j.status IN ('pending', 'in_progress') AND f.deleted = 0 AND j.from_version = f.current_version"
-            " ORDER BY j.created_at").fetchall()
+            " AND f.owner_user_id = ? ORDER BY j.created_at", (ctx.user_id,)).fetchall()
         seen = set()
         for j in sorted(jobs, key=lambda j: order.get(j["reason"], 9)):
             if j["file_id"] in seen or not holds_slot(conn, j["file_id"], j["current_version"], ctx.device_id):

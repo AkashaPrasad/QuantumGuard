@@ -44,7 +44,7 @@ def create_invite(request: Request, ctx: Ctx = gateway("invite.create"),
             user = conn.execute("SELECT status FROM users WHERE user_id = ?", (body.user_id,)).fetchone()
             if user is None or user["status"] == "disabled":
                 raise QGError("QG_NOT_FOUND", "not_found")
-            inv = core.create_invite(conn, body.user_id, ctx.user_id)
+            inv = core.create_invite(conn, body.user_id, ctx.user_id, ctx.device_id)
             rc = core.receipt(conn, action="invite.create", decision="allow", reason="invite_created",
                               subject=ctx.subject, request_hash=ctx.request_hash, resource=inv["invite_id"],
                               matched=["P-INVITE-SELF" if body.user_id == ctx.user_id else "P-ADMIN-PEOPLE"])
@@ -81,7 +81,7 @@ def create_invite(request: Request, ctx: Ctx = gateway("invite.create"),
             conn.execute("INSERT INTO user_roles (user_id, role, granted_at, source) VALUES (?,?,?,?)",
                          (uid, r, core.clock.iso(), "invite"))
         core.directory.publish(conn, "invite_person")
-        inv = core.create_invite(conn, uid, ctx.user_id)
+        inv = core.create_invite(conn, uid, ctx.user_id, ctx.device_id)
         rc = core.receipt(conn, action="invite.create", decision="allow", reason="invite_created",
                           subject=ctx.subject, request_hash=ctx.request_hash, resource=inv["invite_id"],
                           matched=d.matched_rules)

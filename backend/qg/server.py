@@ -20,7 +20,11 @@ def main() -> int:
     core.start_background()
     app = create_app(core)
     host = os.environ.get("QG_HOST", "127.0.0.1")
+    # Behind a reverse proxy, set QG_TRUSTED_PROXIES to the proxy's address(es) so the client address used for
+    # rate limits and QG-R012 source responses comes from X-Forwarded-For; otherwise every client looks alike.
+    trusted = os.environ.get("QG_TRUSTED_PROXIES", "127.0.0.1")
     config = uvicorn.Config(app, host=host, port=settings.port, access_log=False, log_level="warning",
+                            proxy_headers=True, forwarded_allow_ips=trusted,
                             server_header=False, date_header=True, timeout_keep_alive=5,
                             limit_concurrency=512, timeout_graceful_shutdown=5)
     server = uvicorn.Server(config)

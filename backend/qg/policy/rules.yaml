@@ -2,7 +2,7 @@
 # deny rule matches. Conditions are facts computed by the server for the request (see engine.py).
 # Changing this file changes policy_bundle_hash; the server must re-sign it (python -m qg.admin policy-sign).
 suite: QG-1
-version: 2
+version: 3
 rules:
   - id: D-USER-NOT-ACTIVE
     effect: deny
@@ -109,9 +109,9 @@ rules:
     conditions: {owner: true}
   - id: P-FILE-HOLDER
     effect: allow
-    description: A device holding a slot for the current version opens, shares and re-keys the file.
+    description: A device holding a slot for the current version opens and shares the file (new versions, including re-keys, are the owner's).
     roles: [employee, admin, operator, auditor]
-    actions: [file.read, slot.release, chunk.read, file.share, file.version, chunk.write, file.commit]
+    actions: [file.read, slot.release, chunk.read, file.share]
     conditions: {has_slot: true}
   - id: P-RECIPIENT
     effect: allow

@@ -1,9 +1,12 @@
 """QG-R012: five or more MAC or signature failures in 60 s. Medium. Throttle the source.
 
 The source is whoever produced the failures. A failure that proves no key (a bad request MAC, a failed
-handshake proof) only shows the caller's network address: those are counted per address and the response
-blocks new handshakes from that address for five minutes. The device or session the failures *claim* is never
-throttled, so nobody can lock another person out by failing on their behalf. A signature failure on an
+handshake proof) only shows the caller's network address and the device or person it claimed. Those are
+counted per (address, claim) and the response, scope `source` with id `<address>|<claim>`, makes further
+*failed* proofs and bad MACs from that address for that claim answer `QG_RATE_LIMITED` without being recorded
+again, for five minutes, liftable by an operator. A correct proof is always verified first and accepted, so
+nobody is locked out by someone else's failures, and other people behind the same address are unaffected.
+Repeat findings merge into the open alert while its response is active. A signature failure on an
 authenticated session (bad manifest, share, change or message signature) comes from that session, which is
 throttled. No address range is ever blocked.
 """
@@ -29,10 +32,10 @@ class Rule(BaseRule):
     def evaluate(self, ctx: RuleContext, event: Event) -> Finding | None:
         unproven = event.data.get("kind") in UNPROVEN
         if unproven:
-            source = event.data.get("source")
-            if not source:
+            source, claim = event.data.get("source"), event.data.get("claim")
+            if not source or not claim:
                 return None
-            key = f"r012:addr:{source}"
+            key = f"r012:src:{source}|{claim}"
         elif event.session_id:
             key = f"r012:session:{event.session_id}"
         else:
@@ -41,16 +44,16 @@ class Rule(BaseRule):
         if len(refs) < THRESHOLD:
             return None
         if unproven:
-            ctx.core.block_handshakes(source, BLOCK_SECONDS)
             ctx.core.detector.counters.clear(key)
             return Finding(
-                summary=f"{len(refs)} failed key proofs in {int(WINDOW)} s from one network address; new handshakes from "
-                        "that address are refused for 5 minutes. The devices and sessions they named are not affected.",
+                summary=f"{len(refs)} failed key proofs in {int(WINDOW)} s from one network address claiming {claim}; "
+                        "further failed proofs from that address for that claim are refused for 5 minutes. Correct "
+                        "proofs, the claimed device and other people are not affected.",
                 condition=self.CONDITION,
                 receipt_ids=[r for r in refs if r],
-                response=None,
+                response=Response("throttle", "source", f"{source}|{claim}", BLOCK_SECONDS),
                 subject={"user_id": None, "device_id": None, "session_id": None},
-                extra={"source": source, "blocked_seconds": BLOCK_SECONDS},
+                extra={"source": source, "claim": claim},
             )
         return Finding(
             summary=f"{len(refs)} signature failures in {int(WINDOW)} s on one session; the session is throttled "
