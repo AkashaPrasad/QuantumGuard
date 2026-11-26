@@ -1,0 +1,36 @@
+# secrets and local tooling: never commit
+info.txt
+.env
+.env.*
+!.env.example
+.herd/
+
+# runtime state
+data/
+keys/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.qgkeystore
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+*.egg-info/
+
+# node
+node_modules/
+web/dist/
+web/test-results/
+web/playwright-report/
+*.tsbuildinfo
+
+# os and editors
+.DS_Store
+.idea/
+.vscode/

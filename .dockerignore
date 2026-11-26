@@ -1,0 +1,14 @@
+info.txt
+.env
+.env.*
+.git
+.herd
+*.docx
+data
+keys
+**/node_modules
+**/.venv
+**/__pycache__
+web/dist
+web/test-results
+web/playwright-report

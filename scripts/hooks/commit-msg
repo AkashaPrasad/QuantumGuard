@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Rejects commit messages that carry tool attribution lines.
+set -euo pipefail
+if grep -Eiq 'co-authored-by:|generated with' "$1"; then
+  echo "commit-msg: attribution trailer found; remove it and commit again." >&2
+  exit 1
+fi
