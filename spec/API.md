@@ -278,7 +278,18 @@ A retired key presented to any route answers `QG_DENY_POLICY` / `key_retired` an
 
 ## 10. First start and demo data
 
-On first start the server generates its keys into `keys/`, creates the synthetic organisation and
-prints one enrolment code per seeded person exactly once. `make demo` and `qg demo seed` work
-through the public API like any other client. No route exists that creates data without a session
-or an invite.
+On first start the server generates its keys into `keys/` and creates the synthetic organisation.
+It does not print or log any enrolment code: no secret ever appears in server output.
+
+Codes for the seeded people are issued by a local command that needs access to the data directory,
+which is the same trust as owning the server:
+
+```
+docker compose exec quantumguard python -m qg.admin invite --all --json     # one code per seeded person
+docker compose exec quantumguard python -m qg.admin invite --user-id usr_... --json
+```
+
+It prints `{"invites":[{"user_id","name","roles","code","expires_at"}]}` to its own standard output
+(the caller's terminal, not the server log). These codes are single use and live 24 hours.
+`make demo` calls it, then works through the public API like any other client. No HTTP route
+creates a code without a session, and no route creates data without a session or an invite.
