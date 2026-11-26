@@ -81,10 +81,10 @@ export default function Status() {
             {window.isSecureContext ? 'Yes. Web Crypto is available for symmetric operations.' : 'No. The built-in JavaScript provider is used for everything; it gives the same results.'}
           </Row>
           <Row label="Native ML-KEM-768" ok={native?.mlkem ?? null}>
-            {native ? (native.mlkem ? 'Advertised by this browser.' : 'Not advertised. The audited JavaScript library is used.') : wait}
+            {native ? (native.mlkem ? 'Advertised by this browser.' : 'Not advertised. The JavaScript library is used.') : wait}
           </Row>
           <Row label="Native ML-DSA-65" ok={native?.mldsa ?? null}>
-            {native ? (native.mldsa ? 'Advertised by this browser.' : 'Not advertised. The audited JavaScript library is used.') : wait}
+            {native ? (native.mldsa ? 'Advertised by this browser.' : 'Not advertised. The JavaScript library is used.') : wait}
           </Row>
         </dl>
         <p className="mt-3 text-sm text-muted-foreground">

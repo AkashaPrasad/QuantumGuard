@@ -121,10 +121,10 @@ test.describe('devices', () => {
     await expect(page.getByTestId('report-result')).toBeVisible()
   })
 
-  test.fixme('the fail-closed title reads "The service refused to be safe" as in flows/README.md (src/lib/errors.ts has a stray comma)', async ({ page }) => {
+  test('a fail-closed refusal says the service stopped to stay safe', async ({ page }) => {
     await deviceRow(page, TABLET).getByRole('button', { name: 'Report lost' }).click()
     await failNextThenClick(page, 'report-confirm', 'QG_UNAVAILABLE_FAIL_CLOSED')
-    await expect(page.getByTestId('revoke-dialog').getByRole('alert')).toContainText('The service refused to be safe')
+    await expect(page.getByTestId('revoke-dialog').getByRole('alert')).toContainText('The service stopped to stay safe')
   })
 
   test('offline: the dialog says it cannot be sent', async ({ page, context }) => {

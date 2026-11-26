@@ -229,7 +229,7 @@ export default function IncidentDetail() {
       ) : null}
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-5 border border-rule bg-card p-4 sm:grid-cols-4" data-tour="incident-figures">
-        <Figure label="Enforced in" value={i.time_to_enforce_ms} unit="ms" tone="allow" testId="incident-enforce-ms" hint="from the report to the last key slot deleted" />
+        <Figure label="Enforced in" value={i.time_to_enforce_ms} unit="ms" tone="allow" testId="incident-enforce-ms" hint="for the revocation to commit on the server" />
         <Figure label="Exposed" value={i.counts.exposed} tone={i.counts.exposed > 0 ? 'deny' : undefined} hint="opened after the loss time" />
         <Figure label="Held" value={i.counts.held} hint="key received before it" />
         <Figure label="Attempts denied" value={i.denied_attempts} tone={i.denied_attempts > 0 ? 'caution' : undefined} hint="requests from the device since" />
@@ -250,7 +250,7 @@ export default function IncidentDetail() {
           <Timeline incident={i} />
         </section>
 
-        <section aria-labelledby="exposure-title" data-tour="incident-exposure">
+        <section aria-labelledby="exposure-title" data-tour="incident-exposure" data-testid="incident-exposure">
           <h2 id="exposure-title" className="mb-3 text-base">
             What the device could have seen
           </h2>

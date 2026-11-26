@@ -22,7 +22,7 @@ After unlock an employee lands on Files; admin, operator and auditor land on Ove
 | empty | One serif headline, one sentence, the primary action |
 | error | `ErrorNotice` in place of the content, with Retry |
 | offline | Banner under the top bar: "You are offline. Nothing is sent until the connection returns." Mutating buttons are disabled with that reason |
-| session expired | Lock overlay over the current page: "This device locked itself after 10 minutes idle." Unlocking returns to the same place with input kept |
+| session expired | Lock overlay over the current page. After idle time it says "This device locked itself after 10 minutes idle."; after a manual lock or an ended session it says "This device is locked." Unlocking returns to the same place with input kept |
 | device revoked | Full-page "Access removed from this device": what happened, when, who to contact, and "Forget this device" |
 
 ## Error messages
@@ -47,7 +47,7 @@ Every message says what happened, why, and what to do next, in one or two senten
 | QG_CONFLICT (rekey_pending) | Files are still waiting for new keys | Close the incident after every affected file has a new key. |
 | QG_CONFLICT (other) | That was already done | The page shows the current state. |
 | QG_RATE_LIMITED | Too many requests | Wait a moment and try again. |
-| QG_UNAVAILABLE_FAIL_CLOSED | The service refused to be safe | A part it depends on is unavailable, so nothing was released. Try again shortly. |
+| QG_UNAVAILABLE_FAIL_CLOSED | The service stopped to stay safe | A part it depends on is unavailable, so nothing was released. Try again shortly. |
 | QG_OFFLINE | No connection | Check the network and try again. Nothing was sent. |
 | QG_LOCAL_PASSPHRASE | That passphrase did not unlock this device | Try again. Passphrases are case sensitive. |
 | QG_LOCAL_INTEGRITY | This file failed its integrity check | What arrived is not what was protected, so it was not opened. Tell an operator. |

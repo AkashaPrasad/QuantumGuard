@@ -77,7 +77,7 @@ test.describe('enrol a device', () => {
     await expect(err).toContainText('A device of yours was reported lost, so new devices wait for an operator.')
   })
 
-  test.fixme('a bad signature offers "Start again" (Enrol.tsx:~187 only renders ErrorNotice, no restart action)', async ({ page }) => {
+  test('a bad signature offers "Start again"', async ({ page }) => {
     await toStep(page, 2)
     await mock(page).failNext('QG_BAD_SIGNATURE')
     await createWith(page)
@@ -182,7 +182,7 @@ test.describe('enrol a device', () => {
     await expect(page.getByTestId('enrol-create')).toBeEnabled()
   })
 
-  test.fixme('browser Back steps back inside the flow (Enrol.tsx:~71 keeps the step in useState, so Back leaves the page)', async ({ page }) => {
+  test('browser Back steps back inside the flow', async ({ page }) => {
     await toStep(page, 1)
     await expect(page.getByTestId('enrol-device-name')).toBeVisible()
     await page.goBack()

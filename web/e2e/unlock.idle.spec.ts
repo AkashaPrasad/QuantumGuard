@@ -7,6 +7,7 @@ test.describe('auto-lock after idle', () => {
     await expect(page.getByTestId('lock-overlay')).toBeHidden()
     await expect(page.getByTestId('lock-overlay')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByTestId('lock-overlay')).toContainText('This device is locked')
+    await expect(page.getByTestId('lock-overlay')).toContainText('locked itself after 4 seconds idle')
     await unlockOverlay(page)
     await expect(page).toHaveURL(/\/app\/files$/)
   })

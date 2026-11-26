@@ -83,7 +83,7 @@ export function Section({
 /** Skeleton rows in the final layout of a table. */
 export function RowsSkeleton({ rows = 5, className }: { rows?: number; className?: string }) {
   return (
-    <div className={cn('border border-border', className)} aria-busy="true" aria-label="Loading">
+    <div className={cn('border border-border', className)} role="status" aria-busy="true" aria-label="Loading">
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="flex h-11 items-center gap-4 border-b border-border px-3 last:border-b-0">
           <Skeleton className="h-3.5 w-1/3" />

@@ -9,4 +9,4 @@ States: loading | error | offline | code expired (panel says so and offers "New 
 Exit points and what is saved: an invite; later, slots for the new device. The first device must be unlocked for the catch-up; if it is closed the banner returns next time.
 Clicks to complete: 1 on the first device. Keyboard path: code is in a read-only input so it can be selected; copy button announces "Copied".
 Tour anchors: `devices-add`. Animations: WrapBeams (compact) during catch-up.
-Playwright test ids: `devices-add`, `invite-code`, `invite-copy`, `invite-countdown`, `catchup-banner`.
+Playwright test ids: `devices-add`, `invite-code`, `invite-countdown`, `rekey-banner` (the same banner reports catch-up shares).

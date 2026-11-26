@@ -41,7 +41,7 @@ import { useTheme } from '../theme'
 import { CommandPalette } from './CommandPalette'
 import { PendingWorkBanner } from './PendingWorkBanner'
 import { UnlockForm } from './UnlockForm'
-import { useIdleLock } from './useIdleLock'
+import { IDLE_MS, useIdleLock } from './useIdleLock'
 import { Wordmark } from './Wordmark'
 
 const ROLE_LABEL = { employee: 'Employee', admin: 'Admin', operator: 'Operator', auditor: 'Auditor' } as const
@@ -229,8 +229,9 @@ function OfflineBanner() {
 }
 
 /** Shown over the current page when the device locks; the page underneath keeps its input. */
-function LockOverlay() {
+function LockOverlay({ idle }: { idle: boolean }) {
   const { state } = useMe()
+  const span = IDLE_MS >= 60_000 ? `${Math.round(IDLE_MS / 60_000)} minutes` : `${Math.round(IDLE_MS / 1000)} seconds`
   if (state.kind !== 'locked') return null
   return (
     <div
@@ -246,7 +247,7 @@ function LockOverlay() {
           This device is locked
         </h2>
         <p className="mt-1 mb-5 text-muted-foreground">
-          It locks itself after ten minutes without input. Unlock to carry on where you were; nothing you typed was lost.
+          {idle ? `This device locked itself after ${span} idle. ` : ''}Unlock to carry on where you were; nothing you typed was lost.
         </p>
         <UnlockForm device={state.device} />
       </div>
@@ -297,7 +298,7 @@ export function AppShell() {
         groups={visibleNav(roles, { messaging: meta?.features.messaging ?? false })}
       />
       <Tour />
-      <LockOverlay />
+      <LockOverlay idle={idleLeft <= 0} />
     </SidebarProvider>
   )
 }

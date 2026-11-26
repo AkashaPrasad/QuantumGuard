@@ -118,7 +118,7 @@ test.describe('lock overlay', () => {
     await expect(page.getByRole('heading', { name: 'Devices', level: 1 })).toBeVisible()
   })
 
-  test.fixme('the command palette can lock the device (Ctrl+K crashes the app: CommandDialog in src/components/ui/command.tsx:~35 renders CommandInput without a <Command> parent)', async ({ page }) => {
+  test('the command palette can lock the device', async ({ page }) => {
     await unlockAs(page, 'aiko')
     await page.keyboard.press('Control+k')
     await page.getByRole('option', { name: 'Lock this device now' }).click()
@@ -138,10 +138,11 @@ test.describe('lock overlay', () => {
     await expect(page).toHaveURL(/\/app\/activity$/)
   })
 
-  test.fixme('the overlay says the device locked itself after 10 minutes idle (AppShell.tsx:~215 uses different copy than flows/README.md)', async ({ page }) => {
+  test('an ended session shows the lock overlay and keeps the page', async ({ page }) => {
     await unlockAs(page, 'aiko')
     await mock(page).expireSession()
-    await expect(page.getByTestId('lock-overlay')).toContainText('This device locked itself after 10 minutes idle.')
+    await expect(page.getByTestId('lock-overlay')).toContainText('This device is locked')
+    await expect(page.getByTestId('lock-overlay')).toContainText('nothing you typed was lost')
   })
 
   test('a revoked device mid-session shows "Access removed from this device"', async ({ page }) => {

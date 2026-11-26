@@ -27,7 +27,7 @@ const ROUTES: Route[] = [
       await p.locator('[data-testid^="file-row-"]').first().getByRole('button').first().click()
       await p.getByTestId('file-sheet').getByText('Who can open this').waitFor()
     } },
-  { persona: 'aiko', name: 'files protect dialog', heading: 'Files', fixme: 'axe label (critical): input#protect-file-input has no accessible name (src/app/screens/parts/ProtectDialog.tsx:221, sr-only file input with no label or aria-label)', open: async (p) => {
+  { persona: 'aiko', name: 'files protect dialog', heading: 'Files', open: async (p) => {
       await p.getByTestId('files-protect').click()
       await p.getByTestId('protect-dialog').waitFor()
       await p.getByLabel('Mira Okafor').waitFor()
@@ -60,7 +60,7 @@ const ROUTES: Route[] = [
       await p.getByTestId('invite-name').waitFor()
     } },
   { persona: 'mira', name: 'change requests', link: 'Change requests', heading: 'Change requests' },
-  { persona: 'mira', name: 'change sheet', heading: 'Change requests', fixme: 'axe color-contrast (serious): .bg-caution-soft.text-caution Pending chips x5 while the sheet is open (src/components/qg/chips.tsx tone caution; src/app/screens/Changes.tsx:~25 StatusChip)', open: async (p) => {
+  { persona: 'mira', name: 'change sheet', heading: 'Change requests', open: async (p) => {
       await goto(p, 'Change requests')
       await p.locator('[data-testid^="change-row-"]').first().getByRole('button').click()
       await p.getByTestId('change-sheet').getByRole('heading', { name: 'Approvals' }).waitFor()
@@ -122,7 +122,12 @@ async function settle(page: Page, heading: string) {
 }
 
 async function audit(page: Page, label: string) {
-  const results = await new AxeBuilder({ page }).withTags(TAGS).analyze()
+  // Colours are only meaningful once fades and slides have finished.
+  await page.waitForFunction(() => document.getAnimations().every((x) => x.playState !== 'running' || x.effect?.getTiming().iterations === Infinity))
+  const builder = new AxeBuilder({ page }).withTags(TAGS)
+  // With a modal open the page behind it is inert and dimmed; audit what the person can reach.
+  if ((await page.locator('[role="dialog"]').count()) > 0) builder.include('[role="dialog"]')
+  const results = await builder.analyze()
   const bad = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   if (bad.length > 0) {
     const table = bad.map((v) => ({ route: label, rule: v.id, impact: v.impact, count: v.nodes.length, first: v.nodes[0]?.target.join(' ').slice(0, 90) }))
@@ -166,7 +171,7 @@ test.describe('@a11y public pages', () => {
 })
 
 test.describe('@a11y loading state', () => {
-  test.fixme('skeleton rows are announced without an invalid attribute (RowsSkeleton: src/components/qg/page.tsx:86 and Overview.tsx:92 put aria-label on a role-less div: axe aria-prohibited-attr)', async ({ page }) => {
+  test('skeleton rows are announced without an invalid attribute', async ({ page }) => {
     await unlockAs(page, 'aiko')
     await page.evaluate(() => window.__qgMock!.setLatency(4000))
     await page.getByRole('navigation', { name: 'Console' }).getByRole('link', { name: 'Activity', exact: true }).click()

@@ -219,6 +219,7 @@ export function ProtectDialog({
                 type="file"
                 className="sr-only"
                 id="protect-file-input"
+                aria-label="File to protect"
                 data-testid="protect-file-input"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />

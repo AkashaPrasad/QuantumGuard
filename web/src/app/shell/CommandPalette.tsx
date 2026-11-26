@@ -2,6 +2,7 @@ import { FilePlus2, LockKeyhole, MonitorX, ShieldCheck } from 'lucide-react'
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import {
+  Command,
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -43,6 +44,7 @@ export function CommandPalette({
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange} title="Search or run a command" description="Go to a page or start an action">
+      <Command>
       <CommandInput placeholder="Go to a page or start an action" data-testid="command-input" />
       <CommandList>
         <CommandEmpty>Nothing matches. Try "files", "lost" or "verify".</CommandEmpty>
@@ -83,6 +85,7 @@ export function CommandPalette({
           </div>
         ))}
       </CommandList>
+      </Command>
     </CommandDialog>
   )
 }

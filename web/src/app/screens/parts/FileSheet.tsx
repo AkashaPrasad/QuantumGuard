@@ -113,7 +113,7 @@ export function FileSheet({
               <div className="flex flex-wrap items-center gap-2">
                 <ClassificationChip value={f.classification} />
                 {f.rekey !== 'none' ? <span className="label-caps bg-caution-soft px-1.5 py-1 text-caution">New key pending</span> : null}
-                <Button className="ml-auto h-9" onClick={() => onOpenFile(f.file_id)} disabled={!f.can_open || working || !online}>
+                <Button className="ml-auto h-9" onClick={() => onOpenFile(f.file_id)} disabled={!f.can_open || working || !online} data-testid="file-sheet-open">
                   <Download aria-hidden />
                   {working ? openWords : 'Open'}
                 </Button>

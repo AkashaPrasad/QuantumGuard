@@ -86,7 +86,7 @@ const COPY: Record<string, Entry> = {
   QG_CONFLICT: { title: 'That was already done', body: 'The page shows the current state.' },
   QG_RATE_LIMITED: { title: 'Too many requests', body: 'Wait a moment and try again.' },
   QG_UNAVAILABLE_FAIL_CLOSED: {
-    title: 'The service refused, to be safe',
+    title: 'The service stopped to stay safe',
     body: 'A part it depends on is unavailable, so nothing was released. Try again shortly.',
   },
   QG_OFFLINE: { title: 'No connection', body: 'Check the network and try again. Nothing was sent.' },

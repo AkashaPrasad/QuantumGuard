@@ -89,7 +89,7 @@ export default function Overview() {
     <>
       <PageHeader title="Overview" description="The state of the organisation right now. It refreshes every ten seconds." />
       {q.isPending ? (
-        <div className="grid grid-cols-2 gap-4 border border-border p-4 lg:grid-cols-5" aria-busy="true" aria-label="Loading">
+        <div className="grid grid-cols-2 gap-4 border border-border p-4 lg:grid-cols-5" role="status" aria-busy="true" aria-label="Loading">
           {Array.from({ length: 5 }, (_, i) => (
             <Skeleton key={i} className="h-14" />
           ))}

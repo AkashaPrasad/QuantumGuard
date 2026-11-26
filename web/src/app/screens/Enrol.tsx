@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, Check, CircleDashed, Eye, EyeOff, KeyRound, LoaderCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import type { EnrolStep, LocalDevice } from '@/client/client'
 import { ErrorNotice } from '@/components/qg/error-notice'
 import { Button } from '@/components/ui/button'
@@ -44,6 +44,8 @@ function guessDeviceName(): string {
   return `${os}, ${browser}`
 }
 
+const deviceNameOk = (name: string) => name.trim().length >= 2
+
 function strength(p: string): { score: 0 | 1 | 2 | 3; label: string } {
   if (p.length < MIN_LENGTH) return { score: 0, label: `${MIN_LENGTH - p.length} more ${MIN_LENGTH - p.length === 1 ? 'character' : 'characters'} needed` }
   const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((r) => r.test(p)).length
@@ -85,7 +87,9 @@ export default function Enrol() {
   const navigate = useNavigate()
   const online = useOnline()
 
-  const [step, setStep] = useState(0)
+  // The step lives in the address so the browser's Back button steps back inside the flow.
+  // What was typed stays in memory only; a reload therefore starts again at the code.
+  const [params, setParams] = useSearchParams()
   const [code, setCode] = useState('')
   const [deviceName, setDeviceName] = useState(guessDeviceName)
   const [passphrase, setPassphrase] = useState('')
@@ -96,6 +100,14 @@ export default function Enrol() {
   const [progress, setProgress] = useState<EnrolStep | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [enrolled, setEnrolled] = useState<LocalDevice | null>(null)
+  const wanted = Number(params.get('step') ?? 0)
+  const step = wanted === 2 && code.trim().length >= 4 && deviceNameOk(deviceName) ? 2 : wanted >= 1 && code.trim().length >= 4 ? 1 : 0
+  const setStep = (n: number, replace = false) => {
+    const next = new URLSearchParams(params)
+    if (n === 0) next.delete('step')
+    else next.set('step', String(n))
+    setParams(next, { replace })
+  }
   const firstField = useRef<HTMLInputElement>(null)
   const startedHere = useRef(false)
   const reduced = useReducedMotion()
@@ -158,7 +170,7 @@ export default function Enrol() {
       setError(err)
       setRunning(false)
       // A refused code sends the person back to it, with what they typed kept.
-      if (isCode(err, 'QG_INVALID_INPUT') && err.reason === 'invite_invalid') setStep(0)
+      if (isCode(err, 'QG_INVALID_INPUT') && err.reason === 'invite_invalid') setStep(0, true)
     }
   }
 
@@ -167,7 +179,7 @@ export default function Enrol() {
     if (step === 0 && code.trim().length >= 4) {
       setError(null)
       setStep(1)
-    } else if (step === 1 && deviceName.trim().length >= 2) setStep(2)
+    } else if (step === 1 && deviceNameOk(deviceName)) setStep(2)
     else if (step === 2) void create()
   }
 
@@ -229,7 +241,23 @@ export default function Enrol() {
       <StepHeader current={step} />
 
       <form onSubmit={next} noValidate className="flex flex-col gap-5">
-        {error ? <ErrorNotice error={error} testId="enrol-error" /> : null}
+        {error ? (
+          <ErrorNotice
+            error={error}
+            testId="enrol-error"
+            onRetry={
+              isCode(error, 'QG_BAD_SIGNATURE')
+                ? () => {
+                    setError(null)
+                    setPassphrase('')
+                    setConfirm('')
+                    setStep(0, true)
+                  }
+                : undefined
+            }
+            retryLabel="Start again"
+          />
+        ) : null}
 
         {step === 0 ? (
           <div className="flex flex-col gap-1.5">
@@ -351,7 +379,7 @@ export default function Enrol() {
               size="lg"
               className="h-10 flex-1"
               data-testid="enrol-next"
-              disabled={step === 0 ? code.trim().length < 4 : deviceName.trim().length < 2}
+              disabled={step === 0 ? code.trim().length < 4 : !deviceNameOk(deviceName)}
             >
               Continue
               <ArrowRight aria-hidden />

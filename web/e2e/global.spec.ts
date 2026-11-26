@@ -44,7 +44,7 @@ test.describe('theme', () => {
 })
 
 test.describe('command palette', () => {
-  test.fixme('opens with Ctrl/Meta+K and navigates (opening it crashes the app: src/components/ui/command.tsx:~35 CommandDialog renders cmdk parts without a <Command> root, cmdk throws "reading subscribe")', async ({ page }) => {
+  test('opens with Ctrl/Meta+K and navigates', async ({ page }) => {
     await unlockAs(page, 'aiko')
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+k' : 'Control+k')
     await expect(page.getByTestId('command-input')).toBeVisible()
@@ -53,7 +53,7 @@ test.describe('command palette', () => {
     await expect(page).toHaveURL(/\/app\/devices$/)
   })
 
-  test.fixme('the search button in the top bar opens it (same crash)', async ({ page }) => {
+  test('the search button in the top bar opens it', async ({ page }) => {
     await unlockAs(page, 'aiko')
     await page.getByTestId('command-open').click()
     await expect(page.getByTestId('command-input')).toBeVisible()

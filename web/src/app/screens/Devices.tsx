@@ -50,7 +50,7 @@ function AddDeviceDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
           <div className="mt-4">
             <div className={cn('border border-rule bg-card p-4 text-center', expired && 'opacity-60')}>
               <p className="label-caps">Enrolment code</p>
-              <div className="mt-1 flex items-center justify-center">
+              <div className="mt-1 flex items-center justify-center" data-testid="invite-code">
                 <Ident value={invite.data.code} full label="enrolment code" className="[&>span:first-child]:text-2xl [&>span:first-child]:tracking-[0.12em]" />
               </div>
               <p className="data mt-2 text-sm text-muted-foreground" data-testid="invite-countdown" aria-live="off">
