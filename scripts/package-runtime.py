@@ -40,8 +40,11 @@ def stage(root: Path, output: Path) -> None:
         "requires-python": project["requires-python"],
         "dependencies": project.get("dependencies", []),
     }
-    text = '[build-system]\nrequires = ["hatchling==1.27.0"]\nbuild-backend = "hatchling.build"\n\n[project]\n'
+    text = '[build-system]\nrequires = ["hatchling==1.33.0"]\nbuild-backend = "hatchling.build"\n\n[project]\n'
     text += "\n".join(f"{key} = {json.dumps(value)}" for key, value in metadata.items())
+    if project.get("scripts"):
+        text += "\n\n[project.scripts]\n"
+        text += "\n".join(f"{json.dumps(name)} = {json.dumps(value)}" for name, value in project["scripts"].items())
     text += '\n\n[tool.hatch.build.targets.wheel]\npackages = ["qg"]\n'
     (output / "pyproject.toml").write_text(text, encoding="utf-8")
 

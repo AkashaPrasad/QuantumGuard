@@ -21,7 +21,7 @@ def main(arguments: list[str]) -> int:
             print("Unknown scenario", file=sys.stderr)
             return 2
         for name in names:
-            result = subprocess.run([sys.executable, "scenarios/run.py", name], check=False)  # nosec B603
+            result = subprocess.run([sys.executable, "-m", "qg.scenarios", name], check=False)  # nosec B603
             if result.returncode:
                 return result.returncode
         return 0

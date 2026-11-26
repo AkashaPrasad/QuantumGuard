@@ -58,7 +58,10 @@ to select a scenario, or append pytest arguments to select suites. The test imag
 source and development tools; the final runtime contains one wheel combining server, client
 and operator CLI modules, plus package data and production dependencies. Wheel staging
 rejects server/client source collisions and missing `qg.admin`; it does not import application
-code or generate keys at build time.
+code or generate keys at build time. This is the runtime's single wheel builder; core's
+pyproject supports the host environment. The generated project preserves declared console
+scripts (including `qg`) and builds with Hatchling 1.33.0. The test runner invokes the same
+`python -m qg.scenarios` entry point used by the installed runtime.
 
 The test service has a read-only root, no external network, no app volumes and no host Docker
 socket. Local subprocess servers still communicate over container loopback. Its temporary

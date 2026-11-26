@@ -94,12 +94,13 @@ class RuntimeNamespaceTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.output = self.root / "wheel-source"
         for path, text in {
-            "backend/pyproject.toml": '[project]\nname="quantumguard"\nversion="0.1.0"\nrequires-python=">=3.12,<3.13"\ndependencies=["httpx==0.28.1"]\n',
+            "backend/pyproject.toml": '[project]\nname="quantumguard"\nversion="0.1.0"\nrequires-python=">=3.12,<3.13"\ndependencies=["httpx==0.28.1"]\n[project.scripts]\nqg="qg.client.cli:main"\n',
             "backend/qg/app.py": 'raise RuntimeError("Never import application code during packaging")\n',
             "backend/qg/admin.py": "# operator CLI\n",
             "backend/qg/storage/schema.sql": "CREATE TABLE example (id INTEGER);\n",
             "backend/qg/policy/rules.yaml": "rules: []\n",
             "cli/qg/client/__init__.py": "# client\n",
+            "cli/qg/client/cli.py": "def main():\n    return 0\n",
         }.items():
             destination = self.root / path
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -113,6 +114,8 @@ class RuntimeNamespaceTests(unittest.TestCase):
 
         metadata = tomllib.loads((self.output / "pyproject.toml").read_text(encoding="utf-8"))
         self.assertEqual(metadata["project"]["dependencies"], ["httpx==0.28.1"])
+        self.assertEqual(metadata["project"]["scripts"], {"qg": "qg.client.cli:main"})
+        self.assertEqual(metadata["build-system"]["requires"], ["hatchling==1.33.0"])
         self.assertEqual(metadata["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"], ["qg"])
 
     def test_namespace_collision_cannot_silently_replace_server_code(self):
