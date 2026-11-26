@@ -1,0 +1,278 @@
+# QuantumGuard API contract (v1)
+
+This file is the human-readable contract. `spec/openapi.yaml` is exported from the running
+application and must describe exactly what is written here; `make spec-lint` fails when the two
+drift. Cryptographic encodings are defined in `spec/SUITE.md`.
+
+## 1. Conventions
+
+- Base path `/api/v1`. JSON bodies are UTF-8. Unknown fields are rejected (`QG_INVALID_INPUT`).
+- Binary values in JSON: base64url without padding (written `b64u` below).
+- Ids: a type prefix plus 22 base64url characters from 16 random bytes:
+  `usr_ dev_ fil_ slt_ ses_ inv_ rcp_ inc_ alr_ rsp_ chg_ svc_ key_ msg_ sig_ enr_ lse_`.
+- Times: RFC 3339 UTC with milliseconds, `2026-11-26T12:00:00.000Z`. Server time is authoritative;
+  a client clock is never trusted for a decision.
+- Integers only (no floats) in every signed or hashed object.
+- Lists accept `?limit=` (default 50, max 200) and `?before=<id>` and return
+  `{"items": [...], "next_before": "<id>" | null}`.
+- Every object that is signed or stored carries `"suite": "QG-1"`.
+
+### 1.1 Authenticated requests
+
+Every route outside section 2 needs three headers:
+
+| Header | Value |
+|---|---|
+| `QG-Session` | session id |
+| `QG-Seq` | decimal integer, strictly greater than the last one the server accepted |
+| `QG-MAC` | b64u HMAC-SHA-384 over method, path with query, sequence and body hash (`spec/SUITE.md`) |
+
+Clients send one request at a time per session so sequence numbers arrive in order. Gaps are
+accepted; a value that is not greater than the last accepted one is a replay.
+
+When a request produces a receipt the response carries `QG-Receipt: rcp_...`.
+Every response carries `QG-Request-Id`.
+
+### 1.2 Errors
+
+```json
+{"error": {"code": "QG_DENY_POLICY", "message": "Short sentence safe to show.", "reason": "self_approval",
+           "request_id": "...", "receipt_id": "rcp_... | null"}}
+```
+
+`reason` is a stable machine word from the tables below; it never contains internal detail.
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `QG_INVALID_INPUT` | 400 | Body, parameter or header failed validation |
+| `QG_BAD_SUITE` | 400 | `suite` is not `QG-1` |
+| `QG_BAD_SIGNATURE` | 400 | A signature or key confirmation did not verify |
+| `QG_NO_SESSION` | 401 | Missing or unknown session (also after expiry) |
+| `QG_BAD_MAC` | 401 | Request MAC did not verify |
+| `QG_REPLAY` | 401 | Sequence number not greater than the last accepted; the session is ended |
+| `QG_DENY_REVOKED` | 403 | The device is revoked |
+| `QG_DENY_POLICY` | 403 | Policy said no |
+| `QG_QUARANTINED` | 403 | A scoped automatic response is active for this session, device or identity |
+| `QG_STALE_EPOCH` | 409 | Object built on a directory epoch older than allowed; fetch the directory and retry |
+| `QG_LEASE_EXPIRED` | 403 | Lease is missing, expired or cancelled |
+| `QG_NOT_FOUND` | 404 | Unknown object, or one the caller may not see |
+| `QG_CONFLICT` | 409 | State does not allow this (already committed, already approved, already revoked) |
+| `QG_RATE_LIMITED` | 429 | Too many requests; `Retry-After` is set |
+| `QG_UNAVAILABLE_FAIL_CLOSED` | 503 | A dependency is down; nothing was released |
+
+### 1.3 Roles
+
+`employee`, `admin`, `operator`, `auditor`. A person may hold several. Policy decides every route;
+the lists in this file say which role is expected to be allowed, not a guarantee.
+
+## 2. Public routes (no session)
+
+| Route | Returns |
+|---|---|
+| `GET /healthz` | `{"status":"ok"}` |
+| `GET /api/v1/meta` | `{suite, version, commit, demo, server_keys:{ed25519_pk, mldsa_pk, kem_pk}, recovery_pk, policy_bundle_hash, limits:{chunk_bytes, max_file_bytes, max_recipients, lease_seconds, session_ttl_seconds, session_hard_cap_seconds}, features:{messaging, slhdsa}}` |
+| `GET /api/v1/directory` | Current signed directory (3.1). `?epoch=n` returns that epoch or `QG_NOT_FOUND` |
+| `GET /api/v1/log/checkpoint` | Latest signed checkpoint (3.6) |
+| `GET /api/v1/keys` | Signed service key set (9) |
+| `GET /api/v1/bench/latest` | Contents of `bench/latest.json`, or `QG_NOT_FOUND` |
+| `POST /api/v1/enroll/start` | 4.1 |
+| `POST /api/v1/enroll/finish` | 4.1 |
+| `POST /api/v1/session/start` | 4.2 |
+| `POST /api/v1/session/finish` | 4.2 |
+
+## 3. Shared objects
+
+### 3.1 Directory
+
+```
+{suite, epoch, prev_hash, issued_at,
+ users:   [{user_id, name, roles[], status: "active"|"quarantined"|"disabled"}],
+ devices: [{suite, device_id, user_id, name, kem_pk, sig_pk, created_at, expires_at, directory_epoch}],
+ revoked: [{device_id, revoked_at, epoch}],
+ recovery_pk,
+ signatures: {ed25519, mldsa}}
+```
+
+### 3.2 Device (list view, not signed)
+
+`{device_id, user_id, user_name, name, status: "active"|"revoked"|"quarantined", created_at, last_seen_at, is_current, open_incident_id | null}`
+
+### 3.3 File
+
+```
+{file_id, name, classification: "internal"|"confidential"|"restricted",
+ size_bytes, version, chunk_count, owner: {user_id, name}, created_at, updated_at,
+ recipients: [{device_id, user_id, user_name, device_name}],
+ can_open, rekey: "none"|"pending"|"in_progress"}
+```
+
+File names and sizes are metadata the server can read; contents and file keys are not.
+
+### 3.4 Receipt
+
+`{suite, id, ts, request_hash, subject:{user_id, device_id, session_id}, action, resource, policy_bundle_hash, matched_rules[], decision: "allow"|"deny", reason_code, key_epoch, directory_epoch, leaf_index}`
+
+`action` values: `enroll session.start session.end file.create file.commit slot.release chunk.read file.share file.unshare file.delete rekey.commit device.report_lost device.revoke device.rename invite.create change.request change.approve change.reject alert.ack response.lift service.create service.rotate signal.receive message.send recovery.release incident.close bundle.export`.
+
+### 3.5 Alert
+
+```
+{id, ts, rule_id, severity: "critical"|"high"|"medium", status: "open"|"acknowledged",
+ subject: {user_id, device_id, session_id},   // any may be null
+ summary, explanation: {condition, receipt_ids[]},
+ response: {id, action: "deny"|"end_session"|"quarantine_device"|"quarantine_identity"|"throttle"|"require_fresh_session"|"hold_enrolment"|"freeze_key_release"|"none",
+            scope: {kind: "session"|"device"|"identity"|"credential"|"global", id}, expires_at | null, lifted_at | null, lifted_by | null} | null,
+ incident_id | null, acknowledged_by | null}
+```
+
+### 3.6 Checkpoint
+
+`{suite, tree_size, root_hash, ts, signatures: {ed25519, mldsa}}`
+
+## 4. Enrolment and session
+
+### 4.1 Enrol
+
+`POST /enroll/start` `{suite, code, device_name, kem_pk, sig_pk}` ->
+`{enroll_id, challenge, xwing_ct, user:{user_id, name, roles[]}, directory_epoch, server_time}`
+
+`POST /enroll/finish` `{enroll_id, signature, key_confirm}` -> `{certificate, directory}`
+
+| Failure | Code and reason |
+|---|---|
+| Code unknown, used or expired | `QG_INVALID_INPUT` / `invite_invalid` (one answer for all three) |
+| Signature or key confirmation wrong | `QG_BAD_SIGNATURE` / `proof_failed` |
+| A loss report is open for this person | `QG_QUARANTINED` / `enrolment_held` (rule QG-R011; an operator lifts the hold) |
+
+### 4.2 Session
+
+`POST /session/start` `{suite, device_id}` -> `{start_id, challenge, xwing_ct, directory_epoch, server_time}`
+
+`POST /session/finish` `{start_id, signature, key_confirm}` ->
+`{session_id, expires_at, hard_expires_at, user:{user_id, name, roles[], status}, device:{device_id, name}, directory_epoch, first_session: bool}`
+
+`POST /session/end` (authenticated) -> `204`.
+
+Unknown and revoked devices get the same shape from `/session/start`; the refusal happens at
+`/session/finish` with `QG_DENY_REVOKED` for a revoked device (rule QG-R001) and `QG_BAD_SIGNATURE` otherwise.
+
+## 5. Invites and people
+
+People are read from the directory (`users`). There is no separate user list route.
+
+| Route | Who | Body -> result |
+|---|---|---|
+| `POST /invites` | admin; anyone for themselves | `{user_id}` (existing person, new device) or `{name, roles[]}` (new person) -> `{invite_id, code, user_id, expires_at}`. The code is returned once. Inviting a new person with `admin` or `operator` creates a change request instead: `{change_id}` |
+| `GET /invites` | admin; own | `[{invite_id, user_id, user_name, created_by, expires_at, status: "pending"|"used"|"expired"|"cancelled"}]` |
+| `DELETE /invites/{id}` | creator, admin | `204` |
+
+## 6. Files
+
+| Route | Body -> result |
+|---|---|
+| `GET /files` | `?q=&classification=` -> list of File (only files the caller owns or has a slot for) |
+| `POST /files` | `{name, classification, size_bytes, chunk_count}` -> `{file_id, version: 1}` (pending version) |
+| `GET /files/{id}` | File plus `versions:[{version, committed_at, committed_by_device, reason}]` and `activity:[Receipt]` (last 20 for this file) |
+| `DELETE /files/{id}` | owner -> `204`; slots, blobs and pending versions removed |
+| `POST /files/{id}/versions` | `{reason: "rekey"|"update", size_bytes, chunk_count}` -> `{version}` (pending) |
+| `PUT /files/{id}/versions/{v}/chunks/{n}` | raw ciphertext chunk, `Content-Type: application/octet-stream` -> `204`. Idempotent for the same bytes |
+| `POST /files/{id}/versions/{v}/commit` | `{manifest, manifest_sig, wraps:[{device_id, xwing_ct, wrapped_dek}], recovery_wrap:{xwing_ct, wrapped_dek}}` -> `{file: File, receipt_id}` |
+| `GET /files/{id}/slot` | -> `{slot_id, file_id, version, device_id, inner_wrap:{xwing_ct, wrapped_dek}, manifest, manifest_sig, signer_device_id, lease:{lease_id, expires_at}, receipt_id}` |
+| `GET /files/{id}/chunks/{n}` | header `QG-Lease: lse_...` -> raw ciphertext chunk. The lease is checked on every chunk |
+| `POST /files/{id}/share` | `{share:{suite, file_id, version, recipients:[device_id], directory_epoch}, share_sig, wraps:[...]}` -> `{file: File, receipt_id}` |
+| `POST /files/{id}/unshare` | `{user_id}` -> `{file: File, receipt_id}`; that person's slots are deleted and the file is queued for re-key |
+| `GET /rekey/pending` | -> `{rekeys:[{file_id, name, version, reason: "exposed"|"held"|"unshare", incident_id | null, recipients:[device_id]}], shares:[{file_id, name, version, device_id, device_name}]}` |
+
+- `rekeys` lists files this device can still open that need a new key; the client re-encrypts
+  under a new file key, uploads a new version with `reason: "rekey"` and commits it for exactly
+  `recipients`. Commit swaps the version atomically and removes the old slots and ciphertext.
+- `shares` lists files this device can open that another active device of the same person cannot
+  yet; the client adds a wrap with `/share`. This is how a second device catches up.
+- Commit failures: recipient not allowed by policy -> `QG_DENY_POLICY` / `recipient_not_allowed`;
+  manifest signature -> `QG_BAD_SIGNATURE`; hash or chunk count mismatch -> `QG_INVALID_INPUT` /
+  `ciphertext_mismatch`; old epoch -> `QG_STALE_EPOCH`; already committed -> `QG_CONFLICT`.
+- A file the caller may not see answers `QG_NOT_FOUND` on every route.
+
+## 7. Devices and incidents
+
+| Route | Who | Body -> result |
+|---|---|---|
+| `GET /devices` | everyone: own devices; operator, admin, auditor: `?scope=all` | list of Device |
+| `PATCH /devices/{id}` | owner | `{name}` -> Device (publishes a new directory epoch) |
+| `POST /devices/{id}/report-lost` | owner of the device, from another device | `{lost_at, note?}` -> RevokeResult |
+| `POST /devices/{id}/revoke` | operator | `{compromise_time, reason}` -> RevokeResult |
+| `GET /incidents` | operator, auditor; employee sees own | `?status=` -> list of IncidentSummary |
+| `GET /incidents/{id}` | same | Incident |
+| `GET /incidents/{id}/exposure` | same | Exposure |
+| `GET /incidents/{id}/bundle` | operator, auditor | ProofBundle (`spec/SUITE.md`), verifiable offline with `qg verify` |
+| `POST /incidents/{id}/close` | operator | Incident; refused with `QG_CONFLICT` / `rekey_pending` while exposed files wait |
+
+Reporting your own device lost revokes it at once: safety first, the operator can correct the
+compromise time afterwards by calling `/revoke` on the same device, which re-scopes the incident
+and never restores access. Both calls are idempotent and return the same incident.
+
+```
+RevokeResult    {incident_id, device_id, status: "revoked", directory_epoch, time_to_enforce_ms,
+                 sessions_ended, slots_deleted, checkpoint: Checkpoint, receipt_id}
+IncidentSummary {id, device_id, device_name, user_id, user_name, status: "open"|"rekeying"|"contained"|"closed",
+                 reported_at, compromise_time, counts:{exposed, held, never_released, rekeyed, pending}, denied_attempts}
+Incident        IncidentSummary + {reported_by:{user_id, name}, note, time_to_enforce_ms, directory_epoch,
+                 timeline:[{step: "reported"|"revoked"|"scoped"|"rekey_started"|"rekey_progress"|"rekey_done"|"denied_attempt"|"rescoped"|"bundle_exported"|"closed",
+                            ts, receipt_id | null, detail}],
+                 alert_ids[]}
+Exposure        {incident_id, compromise_time,
+                 exposed:[ExposedFile], held:[ExposedFile], never_released:[ExposedFile],
+                 suspect_decisions:[Receipt]}
+ExposedFile     {file_id, name, classification, releases:[{ts, receipt_id}], rekey: "pending"|"done"|"not_needed", new_version | null}
+```
+
+`contained` means every exposed and held file has a new key. `denied_attempts` counts requests
+from the revoked device after the revoke committed.
+
+## 8. Changes, alerts, signals, policy
+
+| Route | Who | Body -> result |
+|---|---|---|
+| `GET /changes` | admin, operator, auditor | `?status=` -> list of Change |
+| `POST /changes` | admin | `{change:{suite, type: "role_grant"|"role_revoke"|"recovery_release", target_user_id, role | null, file_id | null, reason, directory_epoch}, signature}` -> Change |
+| `POST /changes/{id}/approve` | a different admin | `{signature}` -> Change (applied when approvals are complete) |
+| `POST /changes/{id}/reject` | admin | `{reason}` -> Change |
+| `GET /alerts` | operator, auditor | `?status=&rule_id=` -> list of Alert |
+| `GET /alerts/{id}` | operator, auditor | Alert plus `receipts:[Receipt]` and, for QG-R007, `path:[{from, to, relation}]` |
+| `POST /alerts/{id}/ack` | operator | `{note?}` -> Alert |
+| `POST /responses/{id}/lift` | operator | `{reason}` -> Alert |
+| `POST /signals` | operator; service identity | Security Event Token shaped body (`spec/SUITE.md`) -> `{signal_id, accepted: true, duplicate: bool}` |
+| `GET /signals` | operator, auditor | recent signals |
+| `GET /policy` | everyone | `{bundle_hash, version, signed_at, signatures, rules:[{id, effect: "allow"|"deny", description, roles[], actions[], conditions}]}` |
+| `GET /overview` | admin, operator, auditor | `{active_devices, revoked_devices, pending_rekeys, open_alerts, open_incidents, last_time_to_enforce_ms | null, directory_epoch, tree_size, decisions_by_hour:[{hour, allow, deny}]}` (last 24 hours) |
+
+`Change` = `{id, type, target_user:{user_id, name}, role, file_id, reason, requested_by:{user_id, name, device_id}, requested_at, status: "pending"|"applied"|"rejected", approvals:[{user_id, name, device_id, at}], approvals_required}`.
+
+`role_grant` of `admin` or `operator`, and every `recovery_release`, need two approvals from people
+other than the requester and other than the target. Approving your own request, or a request that
+targets you, answers `QG_DENY_POLICY` / `self_approval`.
+
+## 9. Evidence, services, messaging, recovery
+
+| Route | Who | Body -> result |
+|---|---|---|
+| `GET /log/receipts` | own receipts; auditor, operator: all | `?user_id=&device_id=&resource=&action=&decision=` -> list of Receipt |
+| `GET /log/receipts/{id}` | same | Receipt |
+| `GET /log/proof/{index}` | any session | `?tree_size=` -> `{leaf_index, tree_size, leaf_hash, audit_path[], checkpoint}` |
+| `GET /log/consistency` | any session | `?from=&to=` -> `{from, to, proof[]}` |
+| `GET /services` | admin, operator, auditor | `[{service_id, name, status, keys:[{key_id, alg, status: "active"|"retiring"|"retired", created_at, retired_at | null}]}]` |
+| `POST /services` | admin | `{name}` -> service with its first key |
+| `POST /services/{id}/rotate` | admin; operator with `emergency: true` | `{reason, emergency}` -> service; publishes a new signed key set |
+| `GET /messages` | everyone | envelopes addressed to this device |
+| `POST /messages` | everyone | `{to_user_id, envelopes:[{device_id, xwing_ct, ciphertext}], signature}` -> `{message_id}` |
+| `POST /files/{id}/recover` | admin holding the recovery kit | `{change_id}` -> `{recovery_wrap, manifest, manifest_sig}` only when that `recovery_release` change is applied |
+
+`GET /keys` (public) -> `{suite, epoch, keys:[{service_id, key_id, alg, public_key, status}], signatures:{ed25519, mldsa}}`.
+A retired key presented to any route answers `QG_DENY_POLICY` / `key_retired` and raises QG-R010.
+
+## 10. First start and demo data
+
+On first start the server generates its keys into `keys/`, creates the synthetic organisation and
+prints one enrolment code per seeded person exactly once. `make demo` and `qg demo seed` work
+through the public API like any other client. No route exists that creates data without a session
+or an invite.
