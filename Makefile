@@ -18,7 +18,7 @@ EXEC      := $(COMPOSE) exec -T quantumguard python
 .PHONY: help preflight setup requirements dev dev-api dev-web build up down seed demo demo-kit recovery-kit dev-demo spec-lint \
         spec-export vectors test dev-test test-unit test-crypto test-api test-security test-detect \
         test-reliability test-perf test-e2e test-a11y web-lint web-typecheck lint types fuzz scan scan-secrets \
-        bench readme-test verify scenarios dev-scenarios
+        bench bench-detect brief readme-test verify scenarios dev-scenarios
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-20s %s\n", $$1, $$2}'
@@ -166,11 +166,17 @@ dev-scenarios: $(addprefix dev-scenario-,normal revoke interrupt verify rotate p
 bench: ## Performance JSON to bench/latest.json
 	$(PY) python $(ROOT)/bench/bench.py --out $(ROOT)/bench/latest.json
 
+bench-detect: ## Detection quality (F1, false alerts per 1,000 benign events, time to alert) to bench/detection.json
+	$(PY) python $(ROOT)/bench/detection.py --out $(ROOT)/bench/detection.json --rounds 10 --steps 400
+
 scan: ## All scanners (scripts/scan.sh)
 	bash $(ROOT)/scripts/scan.sh
 
 scan-secrets: ## gitleaks over the tree and history
 	bash $(ROOT)/scripts/scan_secrets.sh
+
+brief: ## Build brief/brief.pdf (A4, exactly two pages, demo video link required) with pinned images
+	bash $(ROOT)/scripts/brief.sh
 
 readme-test: ## Run the README commands in a clean container with no info.txt
 	bash $(ROOT)/scripts/readme_test.sh

@@ -29,16 +29,35 @@ def test_quick_bench_has_all_keys_and_sane_numbers(tmp_path):
     json.dumps(res)
     for key in ("commit", "generated_at", "machine", "suite", "crypto_ms", "session_handshake_ms",
                 "policy_decision_ms", "slot_release_ms", "baseline_ms", "authenticated_ms", "added_latency_ms",
-                "time_to_enforce_ms", "throughput_mb_s", "checkpoint_signing_ms_per_1000_receipts",
+                "time_to_enforce_ms", "report_to_denied_ms", "throughput_mb_s", "checkpoint_signing_ms_per_1000_receipts",
                 "cold_start_s", "image_size_mb", "idle_memory_mb", "targets", "met"):
         assert key in res, key
     assert res["suite"] == "QG-1"
     for name in ("xwing_keygen", "xwing_encaps", "xwing_decaps", "mldsa_sign", "mldsa_verify", "ed25519_sign",
                  "dual_sign_checkpoint"):
-        assert set(res["crypto_ms"][name]) == {"median", "p95", "n"}
+        assert set(res["crypto_ms"][name]) == {"median", "p95", "min", "max", "n"}
     assert set(res["throughput_mb_s"]) >= {"protect", "open", "size_overhead"}
     assert set(res["checkpoint_signing_ms_per_1000_receipts"]) >= {"batched", "per_receipt_equivalent"}
     assert set(res["targets"]) == set(res["met"]) == {"policy_decision_p95_ms", "slot_release_p95_ms",
                                                       "added_latency_p95_ms", "time_to_enforce_ms",
                                                       "cold_start_s", "image_size_mb"}
     assert all(n >= 0 for n in _numbers({k: v for k, v in res.items() if k != "added_latency_ms"}))
+
+
+DETECTION = Path(__file__).resolve().parents[2] / "bench" / "detection.py"
+
+
+def test_detection_bench_detects_every_attack(tmp_path):
+    spec = importlib.util.spec_from_file_location("qg_detection_bench", DETECTION)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    out = tmp_path / "detection.json"
+    assert mod.main(["--rounds", "1", "--steps", "120", "--out", str(out)]) == 0
+    res = json.loads(out.read_text())
+    for key in ("precision", "recall", "f1", "false_alerts_per_1000_benign_events", "time_to_alert_ms",
+                "benign_events", "attacks_injected", "per_attack"):
+        assert key in res, key
+    assert res["attacks_injected"] == len(mod.ATTACKS)
+    assert res["recall"] == 1.0, res["missed"]
+    assert res["benign_events"] > 0
+    assert all(a["detected"] == a["runs"] for a in res["per_attack"].values())

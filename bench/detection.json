@@ -1,0 +1,167 @@
+{
+  "attacks_injected": 160,
+  "benign_error_kinds": [
+    "401 QG_NO_SESSION fresh_session_required",
+    "403 QG_DENY_POLICY recipient_not_allowed"
+  ],
+  "benign_events": 5156,
+  "benign_step_errors": 57,
+  "benign_steps": 3850,
+  "f1": 0.9816,
+  "false_alerts": [
+    {
+      "during": "benign",
+      "rule_id": "QG-R008",
+      "summary": "10 key releases this minute against a baseline of 0.3 \u00b1 0.5; the session must be proved again."
+    },
+    {
+      "during": "benign",
+      "rule_id": "QG-R008",
+      "summary": "11 key releases this minute against a baseline of 0.3 \u00b1 0.5; the session must be proved again."
+    },
+    {
+      "during": "benign",
+      "rule_id": "QG-R008",
+      "summary": "10 key releases this minute against a baseline of 0.0 \u00b1 0.1; the session must be proved again."
+    },
+    {
+      "during": "benign",
+      "rule_id": "QG-R008",
+      "summary": "11 key releases this minute against a baseline of 0.0 \u00b1 0.1; the session must be proved again."
+    },
+    {
+      "during": "benign",
+      "rule_id": "QG-R008",
+      "summary": "11 key releases this minute against a baseline of 1.1 \u00b1 3.0; the session must be proved again."
+    },
+    {
+      "during": "benign",
+      "rule_id": "QG-R008",
+      "summary": "12 key releases this minute against a baseline of 1.1 \u00b1 3.0; the session must be proved again."
+    }
+  ],
+  "false_alerts_per_1000_benign_events": 1.164,
+  "false_negatives": 0,
+  "false_positives": 6,
+  "generated_at": "2026-11-26T21:25:30Z",
+  "host": {
+    "machine": "arm64",
+    "python": "3.12.13",
+    "system": "Darwin"
+  },
+  "method": "bench/detection.py: seeded benign workload with labelled attacks injected at random points; every alert attributed to the step that created it. In-process server, fake clock.",
+  "missed": [],
+  "parameters": {
+    "rounds": 10,
+    "seed": 1,
+    "steps_per_round": 400
+  },
+  "per_attack": {
+    "admin grants themselves a role, then opens a confidential file": {
+      "detected": 10,
+      "median_time_to_alert_ms": 36.03,
+      "rule": "QG-R006",
+      "runs": 10
+    },
+    "decoy file opened": {
+      "detected": 10,
+      "median_time_to_alert_ms": 16.56,
+      "rule": "QG-R004",
+      "runs": 10
+    },
+    "downgrade to an unknown suite": {
+      "detected": 10,
+      "median_time_to_alert_ms": 1.53,
+      "rule": "QG-R014",
+      "runs": 10
+    },
+    "evidence log tampered in storage": {
+      "detected": 10,
+      "median_time_to_alert_ms": 1.12,
+      "rule": "QG-R013",
+      "runs": 10
+    },
+    "file id enumeration": {
+      "detected": 10,
+      "median_time_to_alert_ms": 42.45,
+      "rule": "QG-R009",
+      "runs": 10
+    },
+    "forged request MACs": {
+      "detected": 10,
+      "median_time_to_alert_ms": 13.6,
+      "rule": "QG-R012",
+      "runs": 10
+    },
+    "mass key release far above the person's baseline": {
+      "detected": 10,
+      "median_time_to_alert_ms": 19.43,
+      "rule": "QG-R008",
+      "runs": 10
+    },
+    "new device enrolled while a loss report is open": {
+      "detected": 10,
+      "median_time_to_alert_ms": 19.09,
+      "rule": "QG-R011",
+      "runs": 10
+    },
+    "replayed request": {
+      "detected": 10,
+      "median_time_to_alert_ms": 11.16,
+      "rule": "QG-R002",
+      "runs": 10
+    },
+    "retired service key presented": {
+      "detected": 10,
+      "median_time_to_alert_ms": 8.91,
+      "rule": "QG-R010",
+      "runs": 10
+    },
+    "revoked device keeps using its session": {
+      "detected": 10,
+      "median_time_to_alert_ms": 14.9,
+      "rule": "QG-R001",
+      "runs": 10
+    },
+    "role appears in the identity source with no signed change": {
+      "detected": 10,
+      "median_time_to_alert_ms": 9.51,
+      "rule": "QG-R005",
+      "runs": 10
+    },
+    "share built on a directory epoch from before a revocation": {
+      "detected": 10,
+      "median_time_to_alert_ms": 45.1,
+      "rule": "QG-R003",
+      "runs": 10
+    },
+    "variant: enumeration mixing denied and not-found ids": {
+      "detected": 10,
+      "median_time_to_alert_ms": 35.65,
+      "rule": "QG-R009",
+      "runs": 10
+    },
+    "variant: forged session handshake proofs": {
+      "detected": 10,
+      "median_time_to_alert_ms": 19.24,
+      "rule": "QG-R012",
+      "runs": 10
+    },
+    "variant: replay of an older sequence number": {
+      "detected": 10,
+      "median_time_to_alert_ms": 9.73,
+      "rule": "QG-R002",
+      "runs": 10
+    }
+  },
+  "precision": 0.9639,
+  "recall": 1.0,
+  "time_to_alert_ms": {
+    "max": 75.5,
+    "median": 16.33,
+    "min": 0.92,
+    "n": 160,
+    "p95": 44.09
+  },
+  "true_positives": 160
+}

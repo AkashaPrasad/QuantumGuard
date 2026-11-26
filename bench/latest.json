@@ -1,70 +1,88 @@
 {
   "added_latency_ms": {
-    "median": 0.533,
+    "median": 0.6,
     "n": 200,
-    "p95": 1.261
+    "p95": 1.459
   },
   "authenticated_ms": {
-    "median": 1.321,
+    "max": 5.514,
+    "median": 1.292,
+    "min": 0.91,
     "n": 200,
-    "p95": 3.414
+    "p95": 3.54
   },
   "baseline_ms": {
-    "median": 0.788,
+    "max": 3.478,
+    "median": 0.692,
+    "min": 0.384,
     "n": 200,
-    "p95": 2.153
+    "p95": 2.081
   },
   "checkpoint_signing_ms_per_1000_receipts": {
-    "batched": 0.441,
-    "per_receipt_equivalent": 420.725,
+    "batched": 0.286,
+    "per_receipt_equivalent": 416.223,
     "receipts_per_checkpoint": 1000
   },
-  "cold_start_s": 0.316,
-  "commit": "2684af0",
+  "cold_start_s": 0.319,
+  "commit": "0f2d739",
   "crypto_ms": {
     "dual_sign_checkpoint": {
-      "median": 0.348,
+      "max": 1.791,
+      "median": 0.371,
+      "min": 0.163,
       "n": 200,
-      "p95": 0.839
+      "p95": 1.088
     },
     "ed25519_sign": {
-      "median": 0.014,
+      "max": 0.023,
+      "median": 0.015,
+      "min": 0.014,
       "n": 200,
       "p95": 0.015
     },
     "mldsa_sign": {
-      "median": 0.264,
+      "max": 1.576,
+      "median": 0.27,
+      "min": 0.136,
       "n": 200,
-      "p95": 0.822
+      "p95": 0.95
     },
     "mldsa_verify": {
-      "median": 0.075,
+      "max": 0.098,
+      "median": 0.076,
+      "min": 0.075,
       "n": 200,
-      "p95": 0.08
+      "p95": 0.087
     },
     "xwing_decaps": {
-      "median": 0.029,
+      "max": 0.097,
+      "median": 0.032,
+      "min": 0.028,
       "n": 200,
-      "p95": 0.032
+      "p95": 0.041
     },
     "xwing_encaps": {
-      "median": 0.05,
+      "max": 0.068,
+      "median": 0.051,
+      "min": 0.05,
       "n": 200,
-      "p95": 0.057
+      "p95": 0.054
     },
     "xwing_keygen": {
-      "median": 0.061,
+      "max": 0.102,
+      "median": 0.07,
+      "min": 0.068,
       "n": 200,
-      "p95": 0.074
+      "p95": 0.079
     }
   },
-  "generated_at": "2026-11-26T14:50:06Z",
+  "generated_at": "2026-11-26T21:26:14Z",
   "idle_memory_mb": {
     "reason": "image present, idle memory not sampled by this bench",
     "value": null
   },
   "image_size_mb": {
-    "compressed_mib": 36.678,
+    "compressed_mib": 36.679,
     "reason": null,
     "unit": "MB (docker image ls, unpacked)",
     "value": 169.0
@@ -83,19 +101,32 @@
     "time_to_enforce_ms": true
   },
   "policy_decision_ms": {
+    "max": 0.02,
     "median": 0.003,
+    "min": 0.003,
     "n": 1000,
-    "p95": 0.003
+    "p95": 0.004
+  },
+  "report_to_denied_ms": {
+    "max": 21.508,
+    "median": 16.419,
+    "min": 5.053,
+    "n": 30,
+    "p95": 20.937
   },
   "session_handshake_ms": {
-    "median": 2.153,
+    "max": 4.064,
+    "median": 3.0,
+    "min": 2.229,
     "n": 8,
-    "p95": 2.725
+    "p95": 4.064
   },
   "slot_release_ms": {
-    "median": 1.258,
+    "max": 5.16,
+    "median": 1.192,
+    "min": 0.842,
     "n": 200,
-    "p95": 2.769
+    "p95": 2.806
   },
   "suite": "QG-1",
   "targets": {
@@ -107,8 +138,8 @@
     "time_to_enforce_ms": 100
   },
   "throughput_mb_s": {
-    "open": 590.603,
-    "protect": 173.2,
+    "open": 553.315,
+    "protect": 206.006,
     "size_mib": 16,
     "size_overhead": {
       "chunk_count": 16,
@@ -118,8 +149,10 @@
     }
   },
   "time_to_enforce_ms": {
-    "median": 3.0,
-    "n": 5,
-    "p95": 7.0
+    "max": 17.0,
+    "median": 11.5,
+    "min": 2.0,
+    "n": 30,
+    "p95": 16.0
   }
 }

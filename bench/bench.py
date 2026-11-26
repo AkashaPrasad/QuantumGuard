@@ -56,7 +56,7 @@ def r3(x: float) -> float:
 def stats(samples: list[float]) -> dict[str, Any]:
     s = sorted(samples)
     p95 = s[min(len(s) - 1, max(0, round(0.95 * len(s) + 0.5) - 1))]
-    return {"median": r3(statistics.median(s)), "p95": r3(p95), "n": len(s)}
+    return {"median": r3(statistics.median(s)), "p95": r3(p95), "min": r3(s[0]), "max": r3(s[-1]), "n": len(s)}
 
 
 def timed(fn: Any, n: int, warmup: int = 3) -> list[float]:
@@ -192,9 +192,12 @@ def bench_latency(server: Server, dev: Any, n: int) -> dict[str, Any]:
     }
 
 
-def bench_enforce(server: Server, admin: Any, runs: int) -> dict[str, Any]:
-    """Each run: the admin invites a new person, who enrols two devices; the second reports the first lost."""
+def bench_enforce(server: Server, admin: Any, runs: int) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Each run: the admin invites a new person, who enrols two devices; the second reports the first lost.
+    Returns the server-measured enforcement time and the client-observed time from sending the report to the lost
+    device's next request being refused (QG_DENY_REVOKED)."""
     samples: list[float] = []
+    observed: list[float] = []
     c = QGClient(server.url)
     for i in range(runs):
         inv = admin.post("/api/v1/invites", {"name": f"Bench Person {i}", "roles": ["employee"]})
@@ -203,10 +206,15 @@ def bench_enforce(server: Server, admin: Any, runs: int) -> dict[str, Any]:
         inv2 = victim.post("/api/v1/invites", {"user_id": victim.user_id})
         reporter = enroll_device(c, inv2["code"], f"enf-{i}-b")
         login(reporter)
+        t0 = time.perf_counter()
         res = reporter.post(f"/api/v1/devices/{victim.device_id}/report-lost",
                             {"lost_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")})
+        r = victim.raw_request("GET", "/api/v1/devices")
+        observed.append((time.perf_counter() - t0) * 1000)
+        if r.status_code != 403 or r.json()["error"]["code"] != "QG_DENY_REVOKED":
+            raise BenchFailure(f"lost device was not refused after the report: {r.status_code}")
         samples.append(float(res["time_to_enforce_ms"]))
-    return stats(samples)
+    return stats(samples), stats(observed)
 
 
 def bench_throughput(dev: Any, mib: int) -> dict[str, Any]:
@@ -291,7 +299,7 @@ def run(quick: bool = False) -> dict[str, Any]:
         _, dev = enroll(server, "Aiko Tanaka")
         out.update(bench_latency(server, dev, n))
         base = enroll(server, "Mira Okafor")[1]
-        out["time_to_enforce_ms"] = bench_enforce(server, base, 2 if quick else 5)
+        out["time_to_enforce_ms"], out["report_to_denied_ms"] = bench_enforce(server, base, 2 if quick else 30)
         out["throughput_mb_s"] = bench_throughput(dev, 2 if quick else 16)
     finally:
         server.close()
