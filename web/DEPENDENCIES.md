@@ -51,12 +51,4 @@ Not imported anywhere in `web/src`, `web/e2e` or the config files, so the lead c
 
 | Package | Version | Section | Note |
 |---|---|---|---|
-| `@hookform/resolvers` | 7.0.6 | dependencies | No import in `web/src`, `web/e2e` or config files. |
-| `@tanstack/react-table` | 9.3.1 | dependencies | No import in `web/src`, `web/e2e` or config files. |
-| `@xyflow/react` | 12.12.1 | dependencies | No import in `web/src`, `web/e2e` or config files. |
-| `clsx` | 2.1.1 | dependencies | No import; class merging is done by `cn` (see `src/lib/utils.ts`), which replaces clsx plus tailwind-merge. |
-| `react-hook-form` | 7.92.0 | dependencies | No import in `web/src`, `web/e2e` or config files. |
-| `tailwind-merge` | 3.7.0 | dependencies | No import; class merging is done by `cn` (see `src/lib/utils.ts`), which replaces clsx plus tailwind-merge. |
-| `zod` | 4.6.7 | dependencies | No import in `web/src`, `web/e2e` or config files. |
 | `@axe-core/playwright` | 4.14.0 | devDependencies | No import in `web/e2e`; the `test:a11y` script filters on the `@a11y` tag but no spec carries that tag. |
-| `prettier` | 3.10.1 | devDependencies | No config file and no script or import references it. |

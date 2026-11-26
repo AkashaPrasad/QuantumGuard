@@ -6,16 +6,12 @@ This file lists the third-party software, fonts and test data that QuantumGuard 
 
 Versions are the exact pins in `web/package.json`; licences are the `license` field of each installed package's `package.json`.
 
-- **@hookform/resolvers** 7.0.6. Licence: MIT. Source: https://github.com/react-hook-form/resolvers. Changes: none.
 - **@noble/ciphers** 2.4.0. Licence: MIT. Source: https://github.com/paulmillr/noble-ciphers. Changes: none.
 - **@noble/curves** 2.4.0. Licence: MIT. Source: https://github.com/paulmillr/noble-curves. Changes: none.
 - **@noble/hashes** 2.4.0. Licence: MIT. Source: https://github.com/paulmillr/noble-hashes. Changes: none.
 - **@noble/post-quantum** 0.7.1. Licence: MIT. Source: https://github.com/paulmillr/noble-post-quantum. Changes: none.
 - **@tanstack/react-query** 5.107.1. Licence: MIT. Source: https://github.com/TanStack/query. Changes: none.
-- **@tanstack/react-table** 9.3.1. Licence: MIT. Source: https://github.com/TanStack/table. Changes: none.
-- **@xyflow/react** 12.12.1. Licence: MIT. Source: https://github.com/xyflow/xyflow. Changes: none.
 - **class-variance-authority** 0.7.1. Licence: Apache-2.0. Source: https://github.com/joe-bell/cva. Changes: none.
-- **clsx** 2.1.1. Licence: MIT. Source: https://github.com/lukeed/clsx. Changes: none.
 - **cmdk** 1.1.1. Licence: MIT. Source: https://github.com/pacocoursey/cmdk. Changes: none.
 - **cn** 0.5.2. Licence: MIT. Source: https://github.com/shadcn-ui/cn. Changes: none.
 - **driver.js** 1.12.1. Licence: MIT. Source: https://github.com/nilbuild/driver.js. Changes: none.
@@ -25,13 +21,10 @@ Versions are the exact pins in `web/package.json`; licences are the `license` fi
 - **radix-ui** 1.8.1. Licence: MIT. Source: https://github.com/radix-ui/primitives. Changes: none.
 - **react** 19.3.1. Licence: MIT. Source: https://github.com/react/react. Changes: none.
 - **react-dom** 19.3.1. Licence: MIT. Source: https://github.com/react/react. Changes: none.
-- **react-hook-form** 7.92.0. Licence: MIT. Source: https://github.com/react-hook-form/react-hook-form. Changes: none.
 - **react-router** 8.5.1. Licence: MIT. Source: https://github.com/remix-run/react-router. Changes: none.
 - **recharts** 3.8.0. Licence: MIT. Source: https://github.com/recharts/recharts. Changes: none.
 - **shadcn** 4.23.0. Licence: MIT. Source: https://github.com/shadcn-ui/ui. Changes: none.
-- **tailwind-merge** 3.7.0. Licence: MIT. Source: https://github.com/dcastil/tailwind-merge. Changes: none.
 - **tw-animate-css** 1.4.0. Licence: MIT. Source: https://github.com/Wombosvideo/tw-animate-css. Changes: none.
-- **zod** 4.6.7. Licence: MIT. Source: https://github.com/colinhacks/zod. Changes: none.
 
 The `shadcn` package is listed here because `shadcn/tailwind.css` is imported by `src/index.css`. Some packages above are installed but not imported; see `web/DEPENDENCIES.md`.
 
@@ -45,7 +38,6 @@ The `shadcn` package is listed here because `shadcn/tailwind.css` is imported by
 - **@types/react-dom** 19.3.0. Licence: MIT. Source: https://github.com/DefinitelyTyped/DefinitelyTyped. Changes: none.
 - **@vitejs/plugin-react** 6.3.0. Licence: MIT. Source: https://github.com/vitejs/vite-plugin-react. Changes: none.
 - **oxlint** 1.93.0. Licence: MIT. Source: https://github.com/oxc-project/oxc. Changes: none.
-- **prettier** 3.10.1. Licence: MIT. Source: https://github.com/prettier/prettier. Changes: none.
 - **tailwindcss** 4.3.5. Licence: MIT. Source: https://github.com/tailwindlabs/tailwindcss. Changes: none.
 - **typescript** 7.0.2. Licence: Apache-2.0. Source: https://github.com/microsoft/TypeScript. Changes: none.
 - **vite** 8.3.8. Licence: MIT. Source: https://github.com/vitejs/vite. Changes: none.
