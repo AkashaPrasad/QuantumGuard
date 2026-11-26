@@ -13,6 +13,8 @@ import httpx
 
 from qg.crypto import aead, kdf, xwing
 from qg.crypto.encoding import b64u, b64u_decode, canon
+from qg.crypto.messages import digests_for, envelope_digest
+from qg.crypto.messages import statement as message_statement
 from qg.crypto.sign import mldsa_verify, verify_dual
 from qg.crypto.suite import RECOVERY_DEVICE_ID, SUITE
 from qg.crypto.transcripts import enroll_transcript, request_mac, session_transcript
@@ -372,16 +374,26 @@ class Device:
             aad = canon({"device_id": did, "suite": SUITE, "to_user_id": to_user_id})
             envelopes.append({"ciphertext": b64u(n + aead.gcm_encrypt(kdf.message_key(ss), n, plaintext, aad)),
                               "device_id": did, "xwing_ct": b64u(ct)})
-        statement = canon({"envelopes": envelopes, "suite": SUITE, "to_user_id": to_user_id})
+        statement = message_statement(to_user_id, digests_for(envelopes))
         return self.post("/api/v1/messages", {"to_user_id": to_user_id, "envelopes": envelopes,
                                               "signature": b64u(self.state.keys.sig.sign(statement, "message"))})
 
     def read_messages(self) -> list[dict[str, Any]]:
-        """Decrypt the envelopes addressed to this device. The sender's signature covers every envelope, so it is
-        checked when the server returns them all; here each envelope is authenticated by AES-GCM and its AAD."""
+        """Verify the sender's signature (over one digest per envelope, this device's included) and decrypt the
+        envelope addressed to this device."""
         out = []
         for m in self.get("/api/v1/messages")["items"]:
             env = m["envelope"]
+            mine = envelope_digest(self.device_id, env["xwing_ct"], env["ciphertext"])
+            if {"device_id": self.device_id, "digest": mine} not in m["envelope_digests"]:
+                raise ClientRefused("envelope not covered by the signed digests")
+            sender = self.device_entry(m["from"]["device_id"]) or (self.refresh_directory() and
+                                                                     self.device_entry(m["from"]["device_id"]))
+            sender_pk = b64u_decode(sender["sig_pk"]) if sender else None  # only senders in the current directory
+            if sender_pk is None or m.get("to_user_id") != self.user_id or not mldsa_verify(
+                    sender_pk, b64u_decode(m["signature"]), message_statement(self.user_id, m["envelope_digests"]),
+                    "message"):
+                raise ClientRefused("message signature")
             ss = self.state.keys.kem.decapsulate(b64u_decode(env["xwing_ct"]))
             raw = b64u_decode(env["ciphertext"])
             aad = canon({"device_id": self.device_id, "suite": SUITE, "to_user_id": self.user_id})

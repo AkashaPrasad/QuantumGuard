@@ -399,6 +399,42 @@ def checkpoint_vectors() -> dict[str, Any]:
     }
 
 
+def message_vectors() -> dict[str, Any]:
+    from qg.crypto.messages import digests_for, envelope_digest, statement
+
+    sender = MLDSAKey.from_seed(det("message sender", 32))
+    to_user = "usr_" + b64u(det("message to user", 16))
+    plaintext = b"Freezer 3 alarm at 02:10"
+    envelopes, devices = [], []
+    for label in ("laptop", "phone"):
+        kem = xwing.XWingPrivateKey.from_seed(det("message recipient " + label, 32))
+        did = "dev_" + b64u(det("message device " + label, 16))
+        ss, ct = xwing.encapsulate(kem.public_key)
+        n = det("message nonce " + label, 12)
+        aad = canon({"device_id": did, "suite": SUITE, "to_user_id": to_user})
+        env = {"ciphertext": b64u(n + aead.gcm_encrypt(kdf.message_key(ss), n, plaintext, aad)), "device_id": did,
+               "xwing_ct": b64u(ct)}
+        envelopes.append(env)
+        devices.append({"device_id": did, "kem_seed": kem.seed.hex(), "ss": ss.hex(),
+                        "aead_input": kdf.message_key(ss).hex(), "aad_hex": aad.hex(),
+                        "envelope_digest_b64u": envelope_digest(did, env["xwing_ct"], env["ciphertext"])})
+    digests = digests_for(envelopes)
+    st = statement(to_user, digests)
+    return {
+        "description": "spec/SUITE.md section 11. Each recipient device holds only its envelope plus envelope_digests; "
+        "it recomputes its digest, rebuilds the statement and verifies signature_b64u with purpose message.",
+        "sender_sig_seed": sender.seed.hex(),
+        "sender_sig_pk_b64u": b64u(sender.public_key),
+        "to_user_id": to_user,
+        "plaintext_hex": plaintext.hex(),
+        "devices": devices,
+        "envelopes": envelopes,
+        "envelope_digests": digests,
+        "statement_hex": st.hex(),
+        "signature_b64u": b64u(sender.sign(st, "message")),
+    }
+
+
 def main() -> None:
     write("canonical_json", {**canonical_json(), "b64u": b64u_vectors()})
     write("request_mac", request_mac())
@@ -407,6 +443,7 @@ def main() -> None:
     write("keystore", keystore_vectors())
     write("merkle", merkle_vectors())
     write("checkpoint", checkpoint_vectors())
+    write("messages", message_vectors())
 
 
 if __name__ == "__main__":

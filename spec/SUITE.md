@@ -442,9 +442,26 @@ privileged role) carry `signature: ""` and are attributed to the admin's session
 
 For each recipient device: `(ss, xwing_ct) = XWing.Encapsulate(kem_pk)`; key per section 3;
 `ciphertext = n || AES-256-GCM-Encrypt(key, n, plaintext, canon({"device_id", "suite": "QG-1",
-"to_user_id"}))`, `n = random(12)`. The statement
-`canon({"envelopes": [{"ciphertext", "device_id", "xwing_ct"} sorted by device_id], "suite": "QG-1",
-"to_user_id"})` is signed with purpose `message`.
+"to_user_id"}))`, `n = random(12)`.
+
+The sender signs one digest per envelope, so any single recipient device can check the signature from its own
+envelope and the digests, without seeing other devices' ciphertext:
+
+```
+envelope_digest(e) = b64u(SHA-256(canon({"ciphertext": e.ciphertext, "device_id": e.device_id,
+                                          "xwing_ct": e.xwing_ct})))          # b64u strings exactly as sent
+statement = canon({"envelope_digests": [{"device_id", "digest"} for every envelope, sorted by device_id],
+                   "suite": "QG-1", "to_user_id": str})
+signature = b64u(ML-DSA.Sign(sender_sig_sk, statement, "QG/v1/message"))
+```
+
+The server recomputes the digests from the envelopes it receives and refuses a signature that does not
+verify (`QG_BAD_SIGNATURE`). `GET /messages` returns to each device only its own envelope plus
+`envelope_digests` (every envelope's digest) and `to_user_id`. The recipient checks that the digest of its own
+envelope is listed for its `device_id`, rebuilds `statement` from `envelope_digests` and its own `user_id`, and
+verifies the signature under the sender device's `sig_pk` from the current directory before decrypting.
+
+Vectors: `spec/vectors/messages.json`.
 
 ## 12. Service key set
 
@@ -557,6 +574,7 @@ Vectors: `spec/vectors/keystore.json`.
 | `envelope.json` | chunks, wraps, manifest | QuantumGuard |
 | `keystore.json` | keystore files with their passphrases | QuantumGuard |
 | `merkle.json`, `checkpoint.json` | log hashing and signatures | QuantumGuard |
+| `messages.json` | message envelopes, digests, signed statement | QuantumGuard |
 
 All values in vector files are hex (lower case) unless the field name ends in `_b64u` or the value
 is a JSON object defined by this file, in which case it is exactly as it appears on the wire.

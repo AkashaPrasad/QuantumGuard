@@ -8,9 +8,11 @@ from fastapi import APIRouter, Request
 from pydantic import Field
 
 from qg.api.common import page_params, paginate
-from qg.crypto.encoding import EncodingError, b64u_decode, canon
+from qg.crypto.encoding import EncodingError, b64u_decode
+from qg.crypto.messages import digests_for
+from qg.crypto.messages import statement as message_statement
 from qg.crypto.sign import mldsa_verify
-from qg.crypto.suite import MAX_RECIPIENTS, SUITE
+from qg.crypto.suite import MAX_RECIPIENTS
 from qg.errors import QGError
 from qg.gateway.http import Ctx, Strict, authorize, body_openapi, core_of, gateway, json_body, live
 from qg.ids import is_id, new_id
@@ -33,9 +35,7 @@ class MessageCreate(Strict):
 
 
 def statement(to_user_id: str, envelopes: list[dict]) -> bytes:
-    envs = sorted(({"ciphertext": e["ciphertext"], "device_id": e["device_id"], "xwing_ct": e["xwing_ct"]}
-                   for e in envelopes), key=lambda e: e["device_id"])
-    return canon({"envelopes": envs, "suite": SUITE, "to_user_id": to_user_id})
+    return message_statement(to_user_id, digests_for(envelopes))
 
 
 @router.get("/messages")
@@ -48,10 +48,17 @@ def list_messages(request: Request, ctx: Ctx = gateway()) -> dict:
             "SELECT m.*, e.xwing_ct, e.ciphertext, u.name AS from_name FROM messages m JOIN message_envelopes e ON"
             " e.message_id = m.id JOIN users u ON u.user_id = m.from_user WHERE e.device_id = ?"
             " ORDER BY m.created_at DESC, m.id", (ctx.device_id,)).fetchall()
-        items = [{"message_id": r["id"], "from": {"user_id": r["from_user"], "name": r["from_name"],
-                                                  "device_id": r["from_device"]},
-                  "sent_at": r["created_at"], "envelope": {"xwing_ct": r["xwing_ct"], "ciphertext": r["ciphertext"]},
-                  "signature": r["signature"]} for r in rows]
+        items = []
+        for r in rows:
+            # every envelope's digest (not its ciphertext) so this device can check the sender's signature
+            others = conn.execute("SELECT device_id, xwing_ct, ciphertext FROM message_envelopes WHERE message_id = ?",
+                                  (r["id"],)).fetchall()
+            items.append({"message_id": r["id"],
+                          "from": {"user_id": r["from_user"], "name": r["from_name"], "device_id": r["from_device"]},
+                          "to_user_id": r["to_user_id"], "sent_at": r["created_at"],
+                          "envelope": {"xwing_ct": r["xwing_ct"], "ciphertext": r["ciphertext"]},
+                          "envelope_digests": digests_for([dict(o) for o in others]),
+                          "signature": r["signature"]})
     return paginate(items, "message_id", limit, before)
 
 

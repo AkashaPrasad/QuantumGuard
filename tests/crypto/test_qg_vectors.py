@@ -205,3 +205,26 @@ def test_checkpoint_vectors():
     assert (b"QG/v1/checkpoint\x00" + canon(body)).hex() == CP["ed25519_signing_input_hex"]
     for case in CP["must_fail"]:
         assert not verify_dual(case["checkpoint"], "checkpoint", ed, pq), case["why"]
+
+
+def test_message_vectors():
+    from qg.crypto.messages import digests_for, envelope_digest, statement
+
+    mv = load("messages")
+    pk = b64u_decode(mv["sender_sig_pk_b64u"])
+    assert digests_for(mv["envelopes"]) == mv["envelope_digests"]
+    st = statement(mv["to_user_id"], mv["envelope_digests"])
+    assert st.hex() == mv["statement_hex"]
+    assert mldsa_verify(pk, b64u_decode(mv["signature_b64u"]), st, "message")
+    assert not mldsa_verify(pk, b64u_decode(mv["signature_b64u"]), st, "manifest")
+    for dev, env in zip(mv["devices"], mv["envelopes"], strict=True):
+        assert envelope_digest(env["device_id"], env["xwing_ct"], env["ciphertext"]) == dev["envelope_digest_b64u"]
+        kem = xwing.XWingPrivateKey.from_seed(bytes.fromhex(dev["kem_seed"]))
+        ss = kem.decapsulate(b64u_decode(env["xwing_ct"]))
+        assert ss.hex() == dev["ss"] and kdf.message_key(ss).hex() == dev["aead_input"]
+        raw = b64u_decode(env["ciphertext"])
+        assert aead.gcm_decrypt(kdf.message_key(ss), raw[:12], raw[12:], bytes.fromhex(dev["aad_hex"])).hex() == \
+            mv["plaintext_hex"]
+    tampered = [dict(d) for d in mv["envelope_digests"]]
+    tampered[0]["digest"] = tampered[1]["digest"]
+    assert not mldsa_verify(pk, b64u_decode(mv["signature_b64u"]), statement(mv["to_user_id"], tampered), "message")
