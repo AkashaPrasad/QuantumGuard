@@ -1,0 +1,90 @@
+#!/bin/bash
+# First boot of the QuantumGuard API instance. Installs Docker, writes the proxy config and the `qg-up` helper,
+# then starts the two containers with the same hardening flags as docker-compose.yml.
+set -euo pipefail
+
+dnf install -y docker
+systemctl enable --now docker
+
+# A role created moments before launch can take a while to reach the instance. Wait for it, then restart the
+# management agent, which otherwise backs off for a long time after its first failed attempt.
+for _ in $(seq 1 60); do
+  aws sts get-caller-identity --region "${region}" >/dev/null 2>&1 && break
+  sleep 5
+done
+systemctl restart amazon-ssm-agent || true
+
+install -d -m 0755 /etc/quantumguard
+
+cat > /etc/quantumguard/Caddyfile <<'CADDY'
+{
+    admin off
+    auto_https off
+    persist_config off
+}
+
+:8080 {
+    # Only the web edge knows this key, so only it can reach the API or name the client address.
+    @edge header X-QG-Edge-Key {$QG_EDGE_KEY}
+    handle @edge {
+        reverse_proxy quantumguard:8080 {
+            # Set, do not append: the client must not be able to choose its own address.
+            header_up X-Forwarded-For {http.request.header.X-QG-Client-IP}
+            header_up X-Forwarded-Proto https
+            header_up -X-QG-Edge-Key
+            header_up -X-QG-Client-IP
+        }
+    }
+    handle {
+        respond 403
+    }
+}
+CADDY
+
+cat > /usr/local/bin/qg-up <<'UP'
+#!/bin/bash
+# Usage: qg-up <image-ref>   Pull the image and (re)start the API and its proxy. Data and keys live in volumes.
+set -euo pipefail
+image="$1"
+commit="$${image##*:}"
+region="${region}"
+registry="${registry}"
+caddy_image="${caddy_image}"
+
+umask 077
+key="$(aws ssm get-parameter --region "$region" --name "${key_param}" --with-decryption --query Parameter.Value --output text)"
+if [ "$(printf %s "$key" | wc -c)" -lt 32 ]; then echo "edge key missing or too short; not starting" >&2; exit 1; fi
+printf 'QG_EDGE_KEY=%s\n' "$key" > /etc/quantumguard/edge.env
+unset key
+
+aws ecr get-login-password --region "$region" | docker login --username AWS --password-stdin "$registry" >/dev/null
+docker pull -q "$image"
+docker pull -q "$caddy_image"
+docker logout "$registry" >/dev/null
+
+docker network inspect qg >/dev/null 2>&1 || docker network create --subnet 10.89.0.0/24 qg >/dev/null
+docker rm -f qg-edge quantumguard >/dev/null 2>&1 || true
+
+docker run -d --name quantumguard --network qg --ip 10.89.0.2 --restart unless-stopped \
+  --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+  --tmpfs /tmp:rw,noexec,nosuid,size=64m,mode=1777 --pids-limit 128 --stop-timeout 20 \
+  -e QG_DATA_DIR=/var/lib/quantumguard/data -e QG_KEYS_DIR=/var/lib/quantumguard/keys \
+  -e QG_PORT=8080 -e QG_WEB_DIST=/app/web/dist -e QG_DEMO=${demo} -e QG_TRUSTED_PROXIES=10.89.0.3 \
+  -e QG_COMMIT="$commit" \
+  -v qg-data:/var/lib/quantumguard/data -v qg-keys:/var/lib/quantumguard/keys \
+  "$image" >/dev/null
+
+docker run -d --name qg-edge --network qg --ip 10.89.0.3 --restart unless-stopped -p 8080:8080 \
+  --user 10001:10001 --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE --security-opt no-new-privileges:true \
+  --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+  --tmpfs /data:rw,noexec,nosuid,size=16m,uid=10001,gid=10001 \
+  --tmpfs /config:rw,noexec,nosuid,size=4m,uid=10001,gid=10001 \
+  --env-file /etc/quantumguard/edge.env \
+  -v /etc/quantumguard/Caddyfile:/etc/caddy/Caddyfile:ro \
+  "$caddy_image" >/dev/null
+
+echo "started $image"
+UP
+chmod 0755 /usr/local/bin/qg-up
+
+/usr/local/bin/qg-up "${image_ref}"

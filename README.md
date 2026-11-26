@@ -290,6 +290,9 @@ whose owner has no unlocked device stays "new key pending"; devices enrolled wit
 before the report are not revoked by it. The full list is in [THREAT_MODEL.md](THREAT_MODEL.md),
 section 4, and the weaknesses found by the internal review, all fixed, are in section 6.
 
+Everything above runs on one machine. [deploy/README.md](deploy/README.md) describes an optional hosted
+setup (the API on AWS, the console on Cloudflare) and the further limits that come with it.
+
 ## 11. Dependencies, notices and licence
 
 - [DEPENDENCIES.md](DEPENDENCIES.md): Python packages and versions, and why each is used.
