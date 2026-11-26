@@ -47,8 +47,4 @@ Exact versions are pinned in `web/package.json` and locked in `web/pnpm-lock.yam
 
 ## Installed but unused
 
-Not imported anywhere in `web/src`, `web/e2e` or the config files, so the lead can remove them.
-
-| Package | Version | Section | Note |
-|---|---|---|---|
-| `@axe-core/playwright` | 4.14.0 | devDependencies | No import in `web/e2e`; the `test:a11y` script filters on the `@a11y` tag but no spec carries that tag. |
+None. Every dependency in `web/package.json` is imported by the source, the tests or the build configuration (the `@axe-core/playwright` scans live in `web/e2e`).

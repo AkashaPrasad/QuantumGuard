@@ -93,6 +93,7 @@ const ACTION_WORDS: Record<string, string> = {
   'recovery.release': 'Released a recovery slot',
   'incident.close': 'Closed an incident',
   'bundle.export': 'Exported a proof bundle',
+  access: 'Made a request',
 }
 
 export function actionWords(action: string): string {

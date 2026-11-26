@@ -112,7 +112,7 @@ File names and sizes are metadata the server can read; contents and file keys ar
 
 `{suite, id, ts, request_hash, subject:{user_id, device_id, session_id}, action, resource, policy_bundle_hash, matched_rules[], decision: "allow"|"deny", reason_code, key_epoch, directory_epoch, leaf_index}`
 
-`action` values: `enroll session.start session.end file.create file.commit slot.release chunk.read file.share file.unshare file.delete rekey.commit device.report_lost device.revoke device.rename invite.create change.request change.approve change.reject alert.ack response.lift service.create service.rotate signal.receive message.send recovery.release incident.close bundle.export`.
+`action` values: `enroll session.start session.end file.create file.commit slot.release chunk.read file.share file.unshare file.delete rekey.commit device.report_lost device.revoke device.rename invite.create change.request change.approve change.reject alert.ack response.lift service.create service.rotate signal.receive message.send recovery.release incident.close bundle.export access`. `access` is a request on a route that has no more specific action; it is what a refused request from a revoked device is recorded as on such routes.
 
 ### 3.5 Alert
 
