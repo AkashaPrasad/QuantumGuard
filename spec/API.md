@@ -235,7 +235,7 @@ from the revoked device after the revoke committed.
 |---|---|---|
 | `GET /changes` | admin, operator, auditor | `?status=` -> list of Change |
 | `POST /changes` | admin | `{change:{suite, type: "role_grant"|"role_revoke"|"recovery_release", target_user_id, role | null, file_id | null, reason, directory_epoch}, signature}` -> Change |
-| `POST /changes/{id}/approve` | a different admin | `{signature}` -> Change (applied when approvals are complete) |
+| `POST /changes/{id}/approve` | a different admin (operator too for `recovery_release`) | `{signature}` -> Change (applied when approvals are complete) |
 | `POST /changes/{id}/reject` | admin | `{reason}` -> Change |
 | `GET /alerts` | operator, auditor | `?status=&rule_id=` -> list of Alert |
 | `GET /alerts/{id}` | operator, auditor | Alert plus `receipts:[Receipt]` and, for QG-R007, `path:[{from, to, relation}]` |
@@ -248,9 +248,13 @@ from the revoked device after the revoke committed.
 
 `Change` = `{id, type, target_user:{user_id, name}, role, file_id, reason, requested_by:{user_id, name, device_id}, requested_at, status: "pending"|"applied"|"rejected", approvals:[{user_id, name, device_id, at}], approvals_required}`.
 
-`role_grant` of `admin` or `operator`, and every `recovery_release`, need two approvals from people
-other than the requester and other than the target. Approving your own request, or a request that
-targets you, answers `QG_DENY_POLICY` / `self_approval`.
+Approval rules (the seeded organisation has two admins and one operator, so these must be satisfiable):
+
+- `role_grant` of `admin` or `operator`: `approvals_required` is 1, from an admin who is neither the requester nor the target.
+- `role_grant` of `employee` or `auditor`, and every `role_revoke`: `approvals_required` is 0; applied at once and recorded.
+- `recovery_release`: `approvals_required` is 2, from admins or operators other than the requester.
+
+Approving your own request, or a request that targets you, answers `QG_DENY_POLICY` / `self_approval`.
 
 ## 9. Evidence, services, messaging, recovery
 
