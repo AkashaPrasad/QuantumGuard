@@ -13,6 +13,10 @@ RUN --mount=type=bind,source=.,target=/source \
     for directory in spec bench; do \
         if [ -d "/source/$directory" ]; then cp -R "/source/$directory" "/build/$directory"; fi; \
     done
+# Outbound links on the public page (web/src/landing/links.ts); an empty value is not rendered.
+ARG VITE_QG_REPO_URL=https://github.com/AkashaPrasad/QuantumGuard
+ARG VITE_QG_BRIEF_URL=https://github.com/AkashaPrasad/QuantumGuard/blob/main/brief/brief.pdf
+ARG VITE_QG_VIDEO_URL=
 RUN pnpm run build
 
 FROM ghcr.io/astral-sh/uv:0.9.13@sha256:f07d1bf7b1fb4b983eed2b31320e25a2a76625bdf83d5ff0208fe105d4d8d2f5 AS uv
