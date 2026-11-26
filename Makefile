@@ -18,7 +18,7 @@ EXEC      := $(COMPOSE) exec -T quantumguard python
 .PHONY: help preflight setup requirements dev dev-api dev-web build up down seed demo demo-kit recovery-kit dev-demo spec-lint \
         spec-export vectors test dev-test test-unit test-crypto test-api test-security test-detect \
         test-reliability test-perf test-e2e test-a11y web-lint web-typecheck lint types fuzz scan scan-secrets \
-        bench bench-detect brief readme-test verify scenarios dev-scenarios
+        bench bench-detect brief demo-video readme-test verify scenarios dev-scenarios
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-20s %s\n", $$1, $$2}'
@@ -177,6 +177,9 @@ scan-secrets: ## gitleaks over the tree and history
 
 brief: ## Build brief/brief.pdf (A4, exactly two pages, demo video link required) with pinned images
 	bash $(ROOT)/scripts/brief.sh
+
+demo-video: ## Timed demo in one visible browser window for screen recording (brief/video-script.md)
+	bash $(ROOT)/scripts/demo-video.sh
 
 readme-test: ## Run the README commands in a clean container with no info.txt
 	bash $(ROOT)/scripts/readme_test.sh

@@ -1,0 +1,7 @@
+# Overlay for scripts/demo-video.sh: a separate Compose project on port 18080, so a recording never touches
+# the stack on 8080 and every take starts from fresh data and keys.
+services:
+  quantumguard:
+    image: quantumguard:demo
+    ports: !override
+      - "127.0.0.1:18080:8080"
