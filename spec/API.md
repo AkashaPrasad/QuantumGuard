@@ -248,7 +248,7 @@ from the revoked device after the revoke committed.
 | `GET /alerts` | operator, auditor | `?status=&rule_id=` -> list of Alert |
 | `GET /alerts/{id}` | operator, auditor | Alert plus `receipts:[Receipt]` and, for QG-R007, `path:[{from, to, relation}]` |
 | `POST /alerts/{id}/ack` | operator | `{note?}` -> Alert |
-| `POST /responses/{id}/lift` | operator | `{reason}` -> Alert |
+| `POST /responses/{id}/lift` | operator who is not the person, device or session the response contains; an admin when the contained person is an operator | `{reason}` -> Alert. Lifting your own containment answers `QG_DENY_POLICY` / `self_lift` |
 | `POST /signals` | operator; service identity | Security Event Token shaped body (`spec/SUITE.md`) -> `{signal_id, accepted: true, duplicate: bool}` |
 | `GET /signals` | operator, auditor | recent signals |
 | `GET /policy` | everyone | `{bundle_hash, version, signed_at, signatures, document, rules:[{id, effect: "allow"|"deny", description, roles[], actions[], conditions}]}`. `document` is the b64u of the exact signed bundle bytes; `bundle_hash` is its SHA-256 and `signatures` cover it, so a client can check the rules it is shown |

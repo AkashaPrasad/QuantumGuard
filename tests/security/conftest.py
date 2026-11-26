@@ -121,6 +121,18 @@ def security_case(testing_module, request, tmp_path, clock):
 
 
 @pytest.fixture
+def env(testing_module, tmp_path):
+    """A fresh production server (temporary data and keys, injectable FakeClock) with the seeded synthetic
+    organisation. Tests enrol real devices through the public API with the `qg` client library."""
+    import warnings
+
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    e = testing_module.TestEnv(tmp_path / "server")
+    yield e
+    e.close()
+
+
+@pytest.fixture
 def gateway_dependency(testing_module, request):
     dependency = getattr(testing_module, "gateway_dependency", None)
     if dependency is None:

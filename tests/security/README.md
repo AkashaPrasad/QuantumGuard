@@ -56,3 +56,13 @@ not silently exempt startup logs.
 Do not monkeypatch policy decisions, cryptographic verification or access checks to expected
 values. Every denial must run through production enforcement. A test exposing a product flaw
 stays failing and becomes a finding under `tests/attacks/`; product owners fix their code.
+
+## Review r1 layout
+
+- `test_negative_claims.py`, `test_revocation_race.py`: the 13.2 claims asserted directly by the reviewer
+  with `qg.testing.TestEnv` and the `qg` client (`env` fixture), independent of the core-owned adapter.
+- `test_negative_claims_adapter.py`, `test_revocation_race_adapter.py`: the original scaffold, run through
+  the core-owned `security_case` adapter (`qg.testing_cases`).
+- `test_review_probes.py`: checklist 14.4 probes the product withstands.
+- `qgsec.py`: shared helpers (also used by `tests/attacks/`).
+- `tests/attacks/`: one regression test per review finding; see `THREAT_MODEL.md`, section 6.
