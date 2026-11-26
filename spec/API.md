@@ -188,7 +188,10 @@ People are read from the directory (`users`). There is no separate user list rou
 | `POST /files/{id}/unshare` | `{user_id}` -> `{file: File, receipt_id}`; that person's slots are deleted and the file is queued for re-key |
 | `GET /rekey/pending` | -> `{rekeys:[{file_id, name, version, reason: "exposed"|"held"|"unshare", incident_id | null, recipients:[device_id]}], shares:[{file_id, name, version, device_id, device_name}]}` |
 
-- `rekeys` lists files this device can still open that need a new key; the client re-encrypts
+- `rekeys` lists files owned by this device's person that need a new key (only the owner's devices
+  may commit a version with `reason: "rekey"`; a holder who is not the owner gets `QG_DENY_POLICY` /
+  `owner_required`, because the server cannot check that a re-encrypted file still has the same
+  contents). The client re-encrypts
   under a new file key, uploads a new version with `reason: "rekey"` and commits it for exactly
   `recipients`. Commit swaps the version atomically and removes the old slots and ciphertext.
 - `shares` lists files this device can open that another active device of the same person cannot
