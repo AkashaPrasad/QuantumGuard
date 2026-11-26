@@ -48,9 +48,10 @@ claim, not security after compromise of the running server or its key volume.
 `secret_logging` must exercise enroll, login, upload, open, share, revoke, rekey, recovery,
 errors and signal processing. Scan every application's stdout/stderr and security-event log,
 including base64url and hex encodings of generated keys, MAC keys, invitation codes,
-passphrases and KEM secrets. Startup deliberately prints one-time enrollment codes per the
-API contract; reconcile that conflict with the no-secret-in-logs claim before claiming a pass.
-The test must not silently exempt startup logs.
+passphrases and KEM secrets. Include server startup: API section 10 forbids codes in server
+output. The operator's explicit `python -m qg.admin invite` command returns codes only to the
+caller's terminal; never merge that command's output into captured server logs. The test must
+not silently exempt startup logs.
 
 Do not monkeypatch policy decisions, cryptographic verification or access checks to expected
 values. Every denial must run through production enforcement. A test exposing a product flaw

@@ -24,6 +24,28 @@ services:
     stop_grace_period: 20s
     restart: unless-stopped
 
+  tests:
+    profiles: [test]
+    image: quantumguard-tests:local
+    pull_policy: build
+    build:
+      context: .
+      target: test
+    environment:
+      QG_DATA_DIR: /tmp/qg/data
+      QG_KEYS_DIR: /tmp/qg/keys
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=512m,mode=1777
+    pids_limit: 256
+    # Keep reports writable while source, app volumes and host sockets stay absent.
+    volumes:
+      - test-results:/results
+    working_dir: /app
+    network_mode: none
+
   caddy:
     profiles: [tls]
     image: ${QG_CADDY_IMAGE:-docker.io/library/caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d}
@@ -46,3 +68,4 @@ services:
 volumes:
   data:
   keys:
+  test-results:

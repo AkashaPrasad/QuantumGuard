@@ -61,7 +61,7 @@ case "$scanner" in
     pnpm-audit)
         [[ -f $snapshot/web/pnpm-lock.yaml ]] || { printf 'web/pnpm-lock.yaml is required.\n' >&2; exit 2; }
         docker run "${restricted[@]}" "${mount_source[@]}" "$(image_value NODE_IMAGE)" sh -ec \
-            'cp -R /src/web /tmp/web; corepack enable --install-directory /tmp; corepack prepare pnpm@10.11.0 --activate; cd /tmp/web; /tmp/pnpm audit --prod --audit-level high'
+            'cp -R /src/web /tmp/web; corepack enable --install-directory /tmp; cd /tmp/web; corepack install; /tmp/pnpm audit --prod --audit-level high'
         ;;
     trivy-fs)
         docker run "${restricted[@]}" --volume quantumguard-trivy-cache:/root/.cache/trivy \

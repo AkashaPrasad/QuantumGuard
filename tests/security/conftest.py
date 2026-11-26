@@ -5,6 +5,7 @@ import importlib
 import importlib.util
 import ipaddress
 import json
+import os
 from pathlib import Path
 import socket
 import sys
@@ -145,4 +146,5 @@ def pytest_sessionfinish(session, exitstatus):
     claims = getattr(session.config, "_qg_claims", {})
     # Never include exception bodies, random credentials or captured logs in artifacts.
     data = [{"test": key, "outcome": value["outcome"]} for key, value in sorted(claims.items())]
-    (ROOT / "claims.json").write_text(json.dumps({"schema": 1, "claims": data}, indent=2) + "\n", encoding="utf-8")
+    destination = Path(os.environ.get("QG_CLAIMS_PATH", str(ROOT / "claims.json")))
+    destination.write_text(json.dumps({"schema": 1, "claims": data}, indent=2) + "\n", encoding="utf-8")

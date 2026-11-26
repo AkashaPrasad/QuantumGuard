@@ -41,7 +41,7 @@ jobs:
           python -m pip install uv==0.9.13
           uv sync --project backend --frozen
           corepack enable
-          corepack prepare pnpm@10.11.0 --activate
+          corepack prepare pnpm@12.8.1 --activate
           pnpm --dir web install --frozen-lockfile
       - name: Run required gate
         run: make ${{ matrix.target }}

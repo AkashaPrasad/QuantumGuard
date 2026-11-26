@@ -51,6 +51,22 @@ local CA changes when recreated. This profile is for local testing, not public d
 The README gate starts a privileged ephemeral Docker-in-Docker daemon for isolation from
 host volumes; only this test harness is privileged, and it is removed on exit.
 
+`docker compose --profile test run --build --rm tests` builds the Python test image from
+the frozen development lockfile, runs all Python suites with strict security fixtures, then
+runs the six core scenarios. This needs only Docker on the host. Append `scenario revoke`
+to select a scenario, or append pytest arguments to select suites. The test image includes
+source and development tools; the final runtime contains one wheel combining server, client
+and operator CLI modules, plus package data and production dependencies. Wheel staging
+rejects server/client source collisions and missing `qg.admin`; it does not import application
+code or generate keys at build time.
+
+The test service has a read-only root, no external network, no app volumes and no host Docker
+socket. Local subprocess servers still communicate over container loopback. Its temporary
+directory is separate from the service's data and keys. Claim reports persist in the
+`test-results` volume at `/results/claims.json`; normal invocations do not expose invitation
+codes or logs in that artifact. The web stage reads `packageManager` from `web/package.json`
+and includes optional repository `spec/` and `bench/` build inputs.
+
 ## Detection catalogue
 
 Responses must be scoped to the offending identity, device, session or credential, time-boxed
