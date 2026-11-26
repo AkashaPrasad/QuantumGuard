@@ -19,6 +19,7 @@ from fastapi import Depends, Request
 from pydantic import BaseModel, ConfigDict, ValidationError
 from starlette.concurrency import run_in_threadpool
 
+from qg.api.common import client_ip
 from qg.clock import fmt, parse
 from qg.core import Core
 from qg.crypto import kdf
@@ -83,6 +84,19 @@ def _depth(value: Any, d: int = 0) -> int:
     return d
 
 
+def _other_suite(value: Any, depth: int = 0) -> bool:
+    """L1: any `suite` member at any depth naming something other than QG-1 (there is no negotiation)."""
+    if depth > MAX_JSON_DEPTH:
+        return False
+    if isinstance(value, dict):
+        if "suite" in value and value["suite"] != "QG-1":
+            return True
+        return any(_other_suite(v, depth + 1) for v in value.values())
+    if isinstance(value, list):
+        return any(_other_suite(v, depth + 1) for v in value)
+    return False
+
+
 def parse_json(body: bytes, model: type[BaseModel]) -> Any:
     try:
         obj = parse_strict(body or b"")
@@ -90,7 +104,7 @@ def parse_json(body: bytes, model: type[BaseModel]) -> Any:
         raise QGError("QG_INVALID_INPUT", "invalid_json") from exc
     if _depth(obj) > MAX_JSON_DEPTH:
         raise QGError("QG_INVALID_INPUT", "too_deep")
-    if isinstance(obj, dict) and "suite" in obj and obj["suite"] != "QG-1" and "suite" in model.model_fields:
+    if _other_suite(obj):
         raise QGError("QG_BAD_SUITE", "bad_suite")
     try:
         return model.model_validate_json(body)  # JSON mode: strict types, nested objects allowed
@@ -182,6 +196,23 @@ def authenticate(core: Core, request: Request, body: bytes, receipt_action: str 
             else:
                 expired = False
     if revoked_row is not None:
+        # M2: a session ended by revocation counts as a denied attempt only when the request proves possession of
+        # that session's MAC key (kept until the session's hard expiry), with a fresh sequence, within a rate
+        # limit. Anything else is just an unknown session: no receipt, no timeline entry, no alert.
+        kept = core.secrets.revoked_mac(sid, core.clock.now().timestamp())
+        try:
+            tag = b64u_decode(mac_s, length=48)
+        except EncodingError:
+            tag = b""
+        if kept is None or not kdf.verify_hmac384(kept[0], mi, tag):
+            if kept is not None:
+                core.emit_now("mac_failure", {"user_id": None, "device_id": None, "session_id": None}, [],
+                              kind="request_mac", source=client_ip(request))
+            raise QGError("QG_NO_SESSION", "unknown_session")
+        if not core.secrets.advance_revoked(sid, seq):
+            raise QGError("QG_NO_SESSION", "unknown_session")
+        if core.buckets.take(f"rv:{sid}", 0.2, 5.0, core.clock.monotonic()) > 0:
+            raise QGError("QG_NO_SESSION", "unknown_session")  # over budget: refused, nothing more is written
         raise _deny_revoked_attempt(core, request, revoked_row, receipt_action, rh)
     if expired:
         raise QGError("QG_NO_SESSION", "session_expired")
@@ -192,7 +223,8 @@ def authenticate(core: Core, request: Request, body: bytes, receipt_action: str 
         tag = b""
     subject = {"user_id": row["user_id"], "device_id": row["device_id"], "session_id": sid}
     if not kdf.verify_hmac384(k_mac, mi, tag):
-        core.emit_now("mac_failure", subject, kind="request_mac")
+        # M3: a bad MAC proves no key, so QG-R012 counts it against the source address, never this session
+        core.emit_now("mac_failure", subject, kind="request_mac", source=client_ip(request))
         raise QGError("QG_BAD_MAC", "bad_mac")
 
     with core.db.tx() as conn:
@@ -238,6 +270,9 @@ def authenticate(core: Core, request: Request, body: bytes, receipt_action: str 
         raise QGError("QG_RATE_LIMITED", "throttled" if throttled else "rate_limited", retry_after=max(1, int(wait) + 1))
     if not core.policy.available():
         raise QGError("QG_UNAVAILABLE_FAIL_CLOSED", "policy_unavailable")
+    from qg.api.services import check_service_key
+
+    check_service_key(core, ctx, request)  # L3: a retired or decoy service key is refused on every route
     return ctx
 
 

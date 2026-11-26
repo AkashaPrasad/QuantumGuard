@@ -66,7 +66,6 @@ def check_service_key(core: Core, ctx: Ctx, request: Request) -> None:
 def list_services(request: Request, ctx: Ctx = gateway()) -> dict:
     core = core_of(request)
     limit, before = page_params(request)
-    check_service_key(core, ctx, request)
     with core.db.tx() as conn:
         authorize(core, conn, ctx, "service.list")
         if retire_due(core, conn):

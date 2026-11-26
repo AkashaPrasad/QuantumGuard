@@ -103,11 +103,19 @@ def lift_response(response_id: str, request: Request, ctx: Ctx = gateway("respon
     core = core_of(request)
     with core.db.tx() as conn:
         live(core, conn, ctx)
-        d = authorize(core, conn, ctx, "response.lift", receipt_action="response.lift", resource=response_id)
         row = conn.execute("SELECT * FROM responses WHERE id = ?", (response_id,)).fetchone() if is_id(
             response_id, "rsp") else None
         if row is None:
             raise QGError("QG_NOT_FOUND", "not_found")
+        contained = contained_user(conn, row["scope_kind"], row["scope_id"])
+        facts = {"self_lift": contained is not None and contained == ctx.user_id,
+                 "contained_operator": contained is not None and "operator" in core.directory.roles(conn, contained)}
+        try:
+            d = authorize(core, conn, ctx, "response.lift", facts, receipt_action="response.lift", resource=response_id)
+        except QGError as exc:
+            if facts["self_lift"] and exc.code == "QG_DENY_POLICY":
+                raise QGError("QG_DENY_POLICY", "self_lift", receipt_id=exc.receipt_id) from exc
+            raise
         if row["lifted_at"] is not None:
             raise QGError("QG_CONFLICT", "already_lifted")
         core.lift_response(conn, response_id, ctx.user_id, body.reason)
@@ -116,6 +124,22 @@ def lift_response(response_id: str, request: Request, ctx: Ctx = gateway("respon
         out = core.alert_view(conn, row["alert_id"])
     ctx.set_receipt(rc["id"])
     return out
+
+
+def contained_user(conn, scope_kind: str, scope_id: str | None) -> str | None:  # noqa: ANN001
+    """The person an automatic response contains, if any (M4: they may not lift it themselves)."""
+    if scope_id is None:
+        return None
+    if scope_kind == "identity":
+        return scope_id
+    if scope_kind == "device":
+        row = conn.execute("SELECT user_id FROM devices WHERE device_id = ?", (scope_id,)).fetchone()
+        return row[0] if row else None
+    if scope_kind == "session":
+        row = conn.execute("SELECT user_id FROM sessions WHERE session_id = ? UNION SELECT user_id FROM ended_sessions"
+                           " WHERE session_id = ?", (scope_id, scope_id)).fetchone()
+        return row[0] if row else None
+    return None
 
 
 # ---- signals -------------------------------------------------------------------------------------

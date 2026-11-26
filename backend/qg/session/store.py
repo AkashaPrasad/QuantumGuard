@@ -25,6 +25,9 @@ class SecretStore:
         self._lock = threading.Lock()
         self._pending: dict[str, Pending] = {}
         self._mac: dict[str, bytes] = {}
+        # sessions ended by revocation: key kept until the session's hard expiry so that only requests that
+        # prove possession are recorded as denied attempts (M2); value = [k_mac, hard_expiry_epoch_s, last_seq]
+        self._revoked: dict[str, list] = {}
 
     def put_pending(self, key: str, p: Pending, now_mono: float) -> None:
         with self._lock:
@@ -55,7 +58,29 @@ class SecretStore:
         with self._lock:
             self._mac.pop(session_id, None)
 
+    def retire_mac(self, session_id: str, hard_expiry: float, last_seq: int) -> None:
+        with self._lock:
+            key = self._mac.pop(session_id, None)
+            if key is not None:
+                self._revoked[session_id] = [key, hard_expiry, last_seq]
+
+    def revoked_mac(self, session_id: str, now: float) -> list | None:
+        with self._lock:
+            for sid in [s for s, v in self._revoked.items() if v[1] <= now]:
+                del self._revoked[sid]
+            return self._revoked.get(session_id)
+
+    def advance_revoked(self, session_id: str, seq: int) -> bool:
+        """Accept a strictly increasing sequence number on a revoked session (replays are not attempts)."""
+        with self._lock:
+            entry = self._revoked.get(session_id)
+            if entry is None or seq <= entry[2]:
+                return False
+            entry[2] = seq
+            return True
+
     def drop_all(self) -> None:
         with self._lock:
             self._pending.clear()
             self._mac.clear()
+            self._revoked.clear()

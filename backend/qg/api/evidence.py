@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+from typing import Annotated
 
 from fastapi import APIRouter, Request
+from fastapi import Path as FastAPIPath
 
 from qg.api.common import page_params, paginate
 from qg.crypto.encoding import b64u
@@ -75,7 +77,8 @@ def _int(request: Request, name: str, default: int | None = None) -> int | None:
 
 
 @router.get("/log/proof/{index}")
-def get_proof(index: int, request: Request, ctx: Ctx = gateway()) -> dict:
+def get_proof(index: Annotated[int, FastAPIPath(ge=-(2**53 - 1), le=2**53 - 1)], request: Request,
+              ctx: Ctx = gateway()) -> dict:
     core = core_of(request)
     tree_size = _int(request, "tree_size")
     with core.db.tx() as conn:

@@ -41,6 +41,9 @@ B64 = Annotated[str, Field(min_length=1, max_length=8192, pattern=r"^[A-Za-z0-9_
 def _public_rate(request: Request, bucket: str) -> None:
     core = core_of(request)
     rate, burst = core.public_rate
+    blocked = core.buckets.blocked_for(f"{bucket}:{client_ip(request)}", core.clock.monotonic())
+    if blocked > 0:
+        raise QGError("QG_RATE_LIMITED", "source_throttled", retry_after=int(blocked) + 1)
     wait = core.buckets.take(f"{bucket}:{client_ip(request)}", rate, burst, core.clock.monotonic())
     if wait > 0:
         raise QGError("QG_RATE_LIMITED", "rate_limited", retry_after=int(wait) + 1)
@@ -352,14 +355,6 @@ def session_finish(request: Request, body: SessionFinish = json_body(SessionFini
     if dev is None:
         raise QGError("QG_BAD_SIGNATURE", "proof_failed")
     subject = {"user_id": dev["user_id"], "device_id": device_id, "session_id": None}
-    if dev["status"] == "revoked":
-        with core.db.tx() as conn:
-            rc = core.receipt(conn, action="session.start", decision="deny", reason="device_revoked",
-                              subject=subject, request_hash=rh, resource=device_id)
-            core.record_denied_attempt(conn, device_id, rc["id"])
-            core.emit(conn, "revoked_device_attempt", subject, [rc["id"]])
-        request.state.receipt_id = rc["id"]
-        raise QGError("QG_DENY_REVOKED", "device_revoked", receipt_id=rc["id"])
     t = session_transcript(start_id=body.start_id, device_id=device_id, challenge_b64u=b64u(d["challenge"]),
                            xwing_ct_b64u=b64u(d["xwing_ct"]), directory_epoch=d["epoch"],
                            server_time=d["server_time"])
@@ -368,6 +363,20 @@ def session_finish(request: Request, body: SessionFinish = json_body(SessionFini
         confirm = b64u_decode(body.key_confirm, length=48)
     except EncodingError:
         sig, confirm = b"", b""
+    if dev["status"] == "revoked":
+        if not (sig and mldsa_verify(bytes(dev["sig_pk"]), sig, t, "session")):
+            # M2: no proof of the revoked device's key, so this is not evidence of that device; count the failure
+            # against the caller's address only (M3) and write nothing about the device
+            core.emit_now("signature_failure", {"user_id": None, "device_id": None, "session_id": None}, [],
+                          kind="session", source=client_ip(request))
+            raise QGError("QG_BAD_SIGNATURE", "proof_failed")
+        with core.db.tx() as conn:
+            rc = core.receipt(conn, action="session.start", decision="deny", reason="device_revoked",
+                              subject=subject, request_hash=rh, resource=device_id)
+            core.record_denied_attempt(conn, device_id, rc["id"])
+            core.emit(conn, "revoked_device_attempt", subject, [rc["id"]])
+        request.state.receipt_id = rc["id"]
+        raise QGError("QG_DENY_REVOKED", "device_revoked", receipt_id=rc["id"])
     ok = (
         d["ss"] is not None
         and bool(sig)
@@ -378,7 +387,7 @@ def session_finish(request: Request, body: SessionFinish = json_body(SessionFini
         with core.db.tx() as conn:
             rc = core.receipt(conn, action="session.start", decision="deny", reason="proof_failed", subject=subject,
                               request_hash=rh, resource=device_id)
-            core.emit(conn, "signature_failure", subject, [rc["id"]], kind="session")
+            core.emit(conn, "signature_failure", subject, [rc["id"]], kind="session", source=client_ip(request))
         request.state.receipt_id = rc["id"]
         raise QGError("QG_BAD_SIGNATURE", "proof_failed", receipt_id=rc["id"])
     now = core.clock.now()

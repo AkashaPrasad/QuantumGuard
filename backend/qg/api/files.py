@@ -9,6 +9,7 @@ from datetime import timedelta
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Request, Response
+from fastapi import Path as FastAPIPath
 from pydantic import Field
 
 from qg.api.common import page_params, paginate
@@ -28,6 +29,8 @@ Classification = Literal["internal", "confidential", "restricted"]
 SENSITIVE = ("confidential", "restricted")
 B64 = Annotated[str, Field(min_length=1, max_length=8192, pattern=r"^[A-Za-z0-9_-]+$")]
 DevId = Annotated[str, Field(min_length=26, max_length=26)]
+# L2: integers beyond the safe range are input errors (400); in-range values that name nothing stay 404
+PathInt = Annotated[int, FastAPIPath(ge=-(2**53 - 1), le=2**53 - 1)]
 
 
 def expected_chunks(size: int) -> int:
@@ -76,6 +79,18 @@ def access(core: Core, conn: sqlite3.Connection, ctx: Ctx, file_id: str, action:
     authorize(core, conn, ctx, action, facts, receipt_action=receipt_action, resource=file_id,
               key_epoch=row["current_version"])
     return row, facts
+
+
+def pending_rekey_recipients(conn: sqlite3.Connection, file_id: str, version: int) -> list[str] | None:
+    """The exact recipient set a non-owner re-key must use: active devices holding a slot on the current version,
+    or None when no re-key job is pending for that version."""
+    job = conn.execute("SELECT 1 FROM rekey_jobs WHERE file_id = ? AND from_version = ? AND status IN"
+                       " ('pending', 'in_progress') LIMIT 1", (file_id, version)).fetchone()
+    if job is None:
+        return None
+    return [r[0] for r in conn.execute(
+        "SELECT s.device_id FROM slots s JOIN devices d ON d.device_id = s.device_id WHERE s.file_id = ? AND"
+        " s.version = ? AND d.status = 'active' ORDER BY s.device_id", (file_id, version))]
 
 
 def rekey_state(conn: sqlite3.Connection, file_id: str) -> str:
@@ -226,6 +241,10 @@ def create_version(file_id: str, request: Request, ctx: Ctx = gateway(),
             raise QGError("QG_DENY_POLICY", "policy_denied")
         if body.reason == "rekey" and not facts["has_slot"]:
             raise QGError("QG_DENY_POLICY", "policy_denied")
+        if body.reason == "rekey" and not facts["owner"] and \
+                pending_rekey_recipients(conn, file_id, row["current_version"]) is None:
+            rid = core.deny_receipt(ctx, "rekey.commit", "no_pending_rekey", file_id, key_epoch=row["current_version"])
+            raise QGError("QG_DENY_POLICY", "no_pending_rekey", receipt_id=rid)
         nv = conn.execute("SELECT MAX(version) FROM file_versions WHERE file_id = ?", (file_id,)).fetchone()[0] + 1
         # one pending version at a time per file: an abandoned upload is replaced
         for old in conn.execute("SELECT version FROM file_versions WHERE file_id = ? AND status = 'pending'",
@@ -247,7 +266,7 @@ def create_version(file_id: str, request: Request, ctx: Ctx = gateway(),
 @router.put("/files/{file_id}/versions/{version}/chunks/{index}", status_code=204, response_class=Response,
             openapi_extra={"requestBody": {"required": True, "content": {"application/octet-stream": {
                 "schema": {"type": "string", "format": "binary"}}}}})
-def put_chunk(file_id: str, version: int, index: int, request: Request, ctx: Ctx = gateway()) -> Response:
+def put_chunk(file_id: str, version: PathInt, index: PathInt, request: Request, ctx: Ctx = gateway()) -> Response:
     core = core_of(request)
     blob = ctx.body
     if not 28 <= len(blob) <= CHUNK_BYTES + 28:
@@ -345,7 +364,7 @@ def _seal_slot(core: Core, conn: sqlite3.Connection, file_id: str, version: int,
 
 
 @router.post("/files/{file_id}/versions/{version}/commit", openapi_extra=body_openapi(Commit))
-def commit_version(file_id: str, version: int, request: Request, ctx: Ctx = gateway("file.commit"),
+def commit_version(file_id: str, version: PathInt, request: Request, ctx: Ctx = gateway("file.commit"),
                    body: Commit = json_body(Commit)) -> dict:
     core = core_of(request)
     m = body.manifest
@@ -410,6 +429,13 @@ def commit_version(file_id: str, version: int, request: Request, ctx: Ctx = gate
         raise QGError("QG_STALE_EPOCH", "stale_epoch", receipt_id=rid)
     with core.db.tx() as conn:
         live(core, conn, ctx)
+        if reason == "rekey" and row["owner_user_id"] != ctx.user_id:
+            # H1: a holder may only re-key a file that has a pending job, for exactly the remaining recipients
+            expected = pending_rekey_recipients(conn, file_id, conn.execute(
+                "SELECT current_version FROM files WHERE file_id = ?", (file_id,)).fetchone()[0])
+            if expected is None or expected != recips:
+                rid = core.deny_receipt(ctx, action, "recipient_not_allowed", file_id)
+                raise QGError("QG_DENY_POLICY", "recipient_not_allowed", receipt_id=rid)
         _check_recipients(core, conn, ctx, file_id, m.classification, recips, action)
         ver = conn.execute("SELECT status FROM file_versions WHERE file_id = ? AND version = ?",
                            (file_id, version)).fetchone()
@@ -508,7 +534,7 @@ def get_slot(file_id: str, request: Request, ctx: Ctx = gateway("slot.release"))
 
 
 @router.get("/files/{file_id}/chunks/{index}", response_class=Response)
-def get_chunk(file_id: str, index: int, request: Request, ctx: Ctx = gateway("chunk.read")) -> Response:
+def get_chunk(file_id: str, index: PathInt, request: Request, ctx: Ctx = gateway("chunk.read")) -> Response:
     core = core_of(request)
     lease_id = request.headers.get("qg-lease", "")
     with core.db.tx() as conn:

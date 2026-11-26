@@ -2142,6 +2142,8 @@ paths:
         name: index
         required: true
         schema:
+          maximum: 9007199254740991
+          minimum: -9007199254740991
           title: Index
           type: integer
       - description: Session id
@@ -2665,12 +2667,16 @@ paths:
         name: version
         required: true
         schema:
+          maximum: 9007199254740991
+          minimum: -9007199254740991
           title: Version
           type: integer
       - in: path
         name: index
         required: true
         schema:
+          maximum: 9007199254740991
+          minimum: -9007199254740991
           title: Index
           type: integer
       - description: Session id
@@ -2761,6 +2767,8 @@ paths:
         name: version
         required: true
         schema:
+          maximum: 9007199254740991
+          minimum: -9007199254740991
           title: Version
           type: integer
       - description: Session id
@@ -3662,6 +3670,8 @@ paths:
         name: index
         required: true
         schema:
+          maximum: 9007199254740991
+          minimum: -9007199254740991
           title: Index
           type: integer
       - description: Session id

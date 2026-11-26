@@ -3235,6 +3235,8 @@
             "name": "index",
             "required": true,
             "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
               "title": "Index",
               "type": "integer"
             }
@@ -4068,6 +4070,8 @@
             "name": "version",
             "required": true,
             "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
               "title": "Version",
               "type": "integer"
             }
@@ -4077,6 +4081,8 @@
             "name": "index",
             "required": true,
             "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
               "title": "Index",
               "type": "integer"
             }
@@ -4220,6 +4226,8 @@
             "name": "version",
             "required": true,
             "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
               "title": "Version",
               "type": "integer"
             }
@@ -5659,6 +5667,8 @@
             "name": "index",
             "required": true,
             "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
               "title": "Index",
               "type": "integer"
             }

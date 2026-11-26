@@ -105,6 +105,10 @@ def revoke(core: Core, conn: sqlite3.Connection, *, device_id: str, compromise_t
     slots_deleted = conn.execute("DELETE FROM slots WHERE device_id = ?", (device_id,)).rowcount
     sessions_ended = core.end_sessions(conn, where="device_id = ?", params=(device_id,), reason="revoked")
     conn.execute("UPDATE leases SET cancelled = 1 WHERE device_id = ?", (device_id,))
+    # M1: codes the lost device may have minted (and any other pending code for this person) die with it; the
+    # person mints a new one from a trusted device
+    invites_cancelled = conn.execute("UPDATE invites SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'",
+                                     (dev["user_id"],)).rowcount
     directory = core.directory.publish(conn, "revoke", revocation=True)
     incident_id = new_id("inc")
     action = "device.report_lost" if via == "report_lost" else "device.revoke"
@@ -123,8 +127,8 @@ def revoke(core: Core, conn: sqlite3.Connection, *, device_id: str, compromise_t
     timeline(core, conn, incident_id, "reported", rc["id"],
              "Reported lost by the owner." if via == "report_lost" else "Revoked by an operator.")
     timeline(core, conn, incident_id, "revoked", rc["id"],
-             f"Device revoked; {sessions_ended} sessions ended, {slots_deleted} key slots deleted; directory epoch "
-             f"{directory['epoch']}.")
+             f"Device revoked; {sessions_ended} sessions ended, {slots_deleted} key slots deleted, "
+             f"{invites_cancelled} pending enrolment codes cancelled; directory epoch {directory['epoch']}.")
     counts = classify(core, conn, incident_id, device_id, compromise_time, slot_files)
     timeline(core, conn, incident_id, "scoped", None,
              f"{counts['exposed']} exposed, {counts['held']} held, {counts['never_released']} never released.")

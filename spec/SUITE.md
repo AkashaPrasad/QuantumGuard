@@ -25,7 +25,8 @@ UTF-8 encoding of a string. Every literal string in this file is ASCII.
 | Keystore passphrase | Argon2id | RFC 9106, version `0x13` |
 
 There is no negotiation. Every signed, hashed or stored object carries `"suite": "QG-1"`. Any
-other value MUST be rejected (`QG_BAD_SUITE`; server raises rule QG-R014).
+other value MUST be rejected (`QG_BAD_SUITE`; server raises rule QG-R014). The server checks every `suite`
+member at any depth of a request body (a manifest or share statement inside a commit included).
 
 ### 1.1 X-Wing in QG-1
 
@@ -197,6 +198,18 @@ QG-MAC    = b64u(HMAC-SHA-384(K_mac, mac_input))
   active (`QG_DENY_REVOKED`, QG-R001). A request with a bad MAC does not advance the sequence.
 - `request_hash` in receipts is `b64u(SHA-256(mac_input))`. For public routes the same layout is
   hashed with `SEQ = 0`.
+- **Revoked sessions.** Revocation ends the device's sessions in its transaction, but the server keeps each
+  ended session's `K_mac` in memory until that session's hard expiry. A later request on such a session is
+  recorded as a denied attempt (receipt, incident timeline, QG-R001) only if its MAC verifies under that key
+  with a sequence number above any seen before, at most 5 per session then one per 5 s. Any other request
+  naming the session answers `QG_NO_SESSION` and writes nothing. Likewise `/session/finish` for a revoked
+  device records an attempt only when the transcript signature verifies under that device's `sig_pk`;
+  otherwise it answers `QG_BAD_SIGNATURE` and writes nothing about the device.
+- **Failures that prove no key** (a bad request MAC, a failed handshake proof) are attributed to the caller's
+  network address, never to the session or device they name. Five in 60 s raise QG-R012 and refuse new
+  handshakes (`/enroll/*`, `/session/*`) from that address for 300 s (`QG_RATE_LIMITED` / `source_throttled`).
+  Signature failures on an authenticated session (manifest, share, change, approval, message) throttle that
+  session. No address range is ever blocked.
 
 Vectors: `spec/vectors/request_mac.json`.
 
@@ -254,7 +267,11 @@ manifest_sig = b64u(ML-DSA.Sign(device_sig_sk, canon(manifest), "QG/v1/manifest"
 ```
 
 `recipients` is sorted ascending by byte value, unique, never contains `recovery`, and MUST equal
-the set of `device_id` in the commit's `wraps`. The recovery wrap is always present and separate.
+the set of `device_id` in the commit's `wraps`. A version with `reason: "rekey"` created or committed by
+anyone other than the file's owner needs a re-key job pending for the current version, and its recipients
+MUST equal exactly the set `/rekey/pending` lists (active devices holding a slot on the current version);
+otherwise `QG_DENY_POLICY` / `recipient_not_allowed` (or `no_pending_rekey` when the version is created) and
+nothing is committed. The recovery wrap is always present and separate.
 The server verifies the signature against the committing device's `sig_pk`, the hash and chunk
 count against the stored chunks, every recipient against policy, and the epoch (section 8.4).
 
@@ -424,10 +441,18 @@ For each recipient device: `(ss, xwing_ct) = XWing.Encapsulate(kem_pk)`; key per
 "status": "active"|"retiring"|"retired"}] sorted by key_id, "suite": "QG-1", "signatures"}`,
 dual-signed with purpose `keyset`. `epoch` increases on every rotation.
 
-A request may attribute itself to a service key with the header `QG-Service-Key: key_...`. A key in
+A request to any authenticated route may attribute itself to a service key with the header
+`QG-Service-Key: key_...` (checked by the gateway on every route). A key in
 status `retiring` is accepted for 600 seconds after rotation, then becomes `retired`; a retired key answers
 `QG_DENY_POLICY` / `key_retired` (QG-R010); a decoy key raises QG-R004. Emergency rotation retires every
 earlier key at once.
+
+## 12a. Revocation side effects and automatic responses
+
+- The revocation transaction also cancels every pending enrolment code of the device's person, including
+  codes the lost device minted itself; the person mints a new code from a trusted device.
+- An automatic response cannot be lifted by the person it contains (its session, one of their devices, or
+  their identity): `QG_DENY_POLICY` / `self_lift`. An admin may lift a response that contains an operator.
 
 ## 13. Policy bundle
 
@@ -436,7 +461,9 @@ earlier key at once.
 with purpose `policy` at first start (`signed_at` is reported beside the signatures, not inside them).
 `GET /policy` returns `document = b64u(canon(document))` so a client can recompute the hash and verify
 the signatures over those bytes. If the loaded file does not match the stored signature the policy
-engine is unavailable and every decision fails closed. Every receipt carries `policy_bundle_hash`.
+engine is unavailable and every decision fails closed, except that a bundle whose integer `version` is
+higher than the stored one (shipped with a newer build) is signed once at start and recorded as an upgrade
+(`policy_bundle_upgraded`). A changed bundle with the same or a lower version is never accepted. Every receipt carries `policy_bundle_hash`.
 
 ## 14. Signals (SET shaped)
 

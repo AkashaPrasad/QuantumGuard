@@ -37,7 +37,20 @@ PUBLIC_RATE = (0.5, 20.0)  # per client address on public handshake routes: 30 p
 class TokenBuckets:
     def __init__(self) -> None:
         self._b: dict[str, list[float]] = {}
+        self._blocked: dict[str, float] = {}
         self._lock = threading.Lock()
+
+    def block(self, key: str, until: float) -> None:
+        with self._lock:
+            self._blocked[key] = max(until, self._blocked.get(key, 0.0))
+
+    def blocked_for(self, key: str, now: float) -> float:
+        with self._lock:
+            until = self._blocked.get(key)
+            if until is None or until <= now:
+                self._blocked.pop(key, None)
+                return 0.0
+            return until - now
 
     def take(self, key: str, rate: float, burst: float, now: float) -> float:
         """Take one token. Returns 0 when allowed, else seconds until a token is available."""
@@ -118,9 +131,17 @@ class Core:
         doc = load_document()
         with self.db.tx() as conn:
             stored = get_meta(conn, "policy_signed")
-            if stored is None:
+            stored_version = int(get_meta(conn, "policy_version") or 1)
+            if stored is None or (doc["version"] > stored_version and json.loads(stored).get("signatures")):
+                # first start, or the image ships a newer bundle version: sign it once and record the upgrade.
+                # A changed bundle with the same or a lower version is never accepted (fails closed below).
                 signed = PolicyEngine.sign_bundle(doc, self.keys.signer, self.clock.iso())
                 set_meta(conn, "policy_signed", json.dumps(signed))
+                set_meta(conn, "policy_version", str(doc["version"]))
+                if stored is not None:
+                    self.db.on_commit(lambda: self.log_event("policy_bundle_upgraded", version=doc["version"],
+                                                             previous_version=stored_version,
+                                                             policy_bundle_hash=bundle_hash(doc)))
             else:
                 signed = json.loads(stored)
         engine = PolicyEngine(doc, signed, self.keys.signer.ed.public_key, self.keys.signer.pq.public_key,
@@ -134,6 +155,7 @@ class Core:
         signed = PolicyEngine.sign_bundle(doc, self.keys.signer, self.clock.iso())
         with self.db.tx() as conn:
             set_meta(conn, "policy_signed", json.dumps(signed))
+            set_meta(conn, "policy_version", str(doc["version"]))
         self.policy = PolicyEngine(doc, signed, self.keys.signer.ed.public_key, self.keys.signer.pq.public_key,
                                    down_flag=self.settings.data_dir / "policy.down")
         return self.policy.hash
@@ -359,7 +381,7 @@ class Core:
 
     def end_sessions(self, conn: sqlite3.Connection, *, where: str, params: tuple[Any, ...], reason: str) -> int:
         # `where` is always one of a few fixed clauses written in this file; values are bound parameters
-        sql = f"SELECT session_id, device_id, user_id FROM sessions WHERE {where}"  # noqa: S608 # nosec B608
+        sql = f"SELECT session_id, device_id, user_id, hard_expires_at, last_seq FROM sessions WHERE {where}"  # noqa: S608 # nosec B608
         rows = conn.execute(sql, params).fetchall()
         now = self.clock.iso()
         for r in rows:
@@ -371,7 +393,11 @@ class Core:
             conn.execute("DELETE FROM sessions WHERE session_id = ?", (r[0],))
             conn.execute("UPDATE leases SET cancelled = 1 WHERE session_id = ?", (r[0],))
             sid = r[0]
-            self.db.on_commit(lambda sid=sid: self.secrets.drop_mac(sid))
+            if reason in ("revoked", "report_lost"):
+                until = parse(r[3]).timestamp()
+                self.db.on_commit(lambda sid=sid, until=until, seq=r[4]: self.secrets.retire_mac(sid, until, seq))
+            else:
+                self.db.on_commit(lambda sid=sid: self.secrets.drop_mac(sid))
         return len(rows)
 
     def apply_response(self, conn: sqlite3.Connection, r: Response, alert_id: str) -> None:
@@ -406,6 +432,13 @@ class Core:
                 "INSERT INTO enrol_holds (hold_id, user_id, incident_id, created_at) VALUES (?,?,?,?)",
                 (alert_id, r.scope_id, None, self.clock.iso()),
             )
+
+    def block_handshakes(self, address: str, seconds: float) -> None:
+        """QG-R012 for failures that prove no key (bad MACs, failed handshake proofs): the source address may not
+        start handshakes for a while. It never touches the device or session the failures claimed."""
+        until = self.clock.monotonic() + seconds
+        for bucket in ("enroll", "session"):
+            self.buckets.block(f"{bucket}:{address}", until)
 
     def lift_response(self, conn: sqlite3.Connection, response_id: str, by_user: str, reason: str) -> None:
         row = conn.execute("SELECT action, scope_kind, scope_id FROM responses WHERE id = ?", (response_id,)).fetchone()

@@ -2,7 +2,7 @@
 # deny rule matches. Conditions are facts computed by the server for the request (see engine.py).
 # Changing this file changes policy_bundle_hash; the server must re-sign it (python -m qg.admin policy-sign).
 suite: QG-1
-version: 1
+version: 2
 rules:
   - id: D-USER-NOT-ACTIVE
     effect: deny
@@ -22,6 +22,12 @@ rules:
     roles: ["*"]
     actions: [slot.release, chunk.read, file.share, file.read, file.version, file.commit, file.recover]
     conditions: {decoy: true}
+  - id: D-SELF-LIFT
+    effect: deny
+    description: Nobody lifts an automatic response that contains them (their session, device or identity).
+    roles: ["*"]
+    actions: [response.lift]
+    conditions: {self_lift: true}
   - id: D-SELF-APPROVAL
     effect: deny
     description: Nobody approves a change they requested or that targets them.
@@ -67,6 +73,12 @@ rules:
     description: Operators revoke devices, manage incidents, alerts, responses and signals.
     roles: [operator]
     actions: [device.revoke, device.list_all, incident.read_all, incident.bundle, incident.close, alert.list, alert.read, alert.ack, response.lift, signal.send, signal.list, overview.read, change.list, service.list, receipt.read_all]
+  - id: P-ADMIN-LIFT-OPERATOR
+    effect: allow
+    description: An admin may lift a response that contains an operator, so a contained operator is released by someone else.
+    roles: [admin]
+    actions: [response.lift]
+    conditions: {contained_operator: true}
   - id: P-OPERATOR-EMERGENCY-ROTATE
     effect: allow
     description: Operators rotate a service key in an emergency.

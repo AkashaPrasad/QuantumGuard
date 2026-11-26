@@ -9,9 +9,12 @@ def test_enrolment_held_during_open_loss_report(env):
     laptop = env.device("Aiko Tanaka")
     phone = env.second_device("Aiko Tanaka", "Aiko's phone")
     priya = env.device("Priya Raman")
-    code = phone.post("/api/v1/invites", {"user_id": phone.user_id})["code"]
+    early = phone.post("/api/v1/invites", {"user_id": phone.user_id})["code"]
     rr = phone.post(f"/api/v1/devices/{laptop.device_id}/report-lost", {"lost_at": env.clock.iso()})
     assert not env.alerts()
+    # the revocation cancelled every pending code for this person, including ones minted before it (M1)
+    assert err_of(env.client.enroll, early, "new tablet").reason == "invite_invalid"
+    code = phone.post("/api/v1/invites", {"user_id": phone.user_id})["code"]
 
     e = err_of(env.client.enroll, code, "new tablet")
     assert e.status == 403 and e.code == "QG_QUARANTINED" and e.reason == "enrolment_held"
