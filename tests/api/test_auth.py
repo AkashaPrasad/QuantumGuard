@@ -26,7 +26,8 @@ def test_public_routes_and_headers(env):
     assert meta["suite"] == SUITE and meta["limits"]["chunk_bytes"] == 1048576
     assert env.http.get("/docs").status_code == 404 and env.http.get("/openapi.json").status_code == 404
     d = env.http.get("/api/v1/directory").json()
-    assert d["epoch"] == 1 and len(d["users"]) == 6
+    assert d["epoch"] == 2 and len(d["users"]) == 6  # epoch 1 bootstrap, epoch 2 recovery kit issued
+    assert d["recovery_pk"] and env.http.get("/api/v1/meta").json()["recovery_pk"] == d["recovery_pk"]
     assert env.http.get("/api/v1/directory?epoch=99").json()["error"]["code"] == "QG_NOT_FOUND"
     assert env.http.get("/api/v1/log/checkpoint").json()["suite"] == SUITE
     assert env.http.get("/api/v1/keys").json()["epoch"] == 1
@@ -55,10 +56,11 @@ def test_admin_reissue_cancels_previous_code(env):
 
 
 def test_enrol_and_session(env):
+    before = env.http.get("/api/v1/directory").json()["epoch"]
     dev = env.device("Aiko Tanaka")
     assert dev.session.info["first_session"] is True
     assert dev.session.info["user"]["roles"] == ["employee"]
-    assert dev.directory["epoch"] == 2
+    assert dev.directory["epoch"] == before + 1
     again = dev.login()
     assert again["first_session"] is False
 
@@ -94,7 +96,7 @@ def test_enrol_requires_both_proofs(env, which):
     e = err(env.client.finish_enroll, start, keys, "x", meta,
             break_signature=which == "signature", break_confirm=which == "confirm")
     assert (e.code, e.reason) == ("QG_BAD_SIGNATURE", "proof_failed")
-    assert env.http.get("/api/v1/directory").json()["epoch"] == 1
+    assert env.http.get("/api/v1/directory").json()["epoch"] == 2
 
 
 def test_unknown_suite(env):

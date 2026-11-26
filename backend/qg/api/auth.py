@@ -71,7 +71,7 @@ def meta(request: Request) -> dict:
             "mldsa_pk": b64u(core.keys.signer.pq.public_key),
             "kem_pk": b64u(core.keys.kem.public_key),
         },
-        "recovery_pk": b64u(core.keys.recovery_pk),
+        "recovery_pk": (lambda pk: b64u(pk) if pk else None)(core.recovery.get()),
         "policy_bundle_hash": core.policy.hash,
         "limits": {
             "chunk_bytes": CHUNK_BYTES,

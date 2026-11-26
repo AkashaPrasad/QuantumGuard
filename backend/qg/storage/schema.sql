@@ -52,7 +52,8 @@ CREATE TABLE IF NOT EXISTS slots (
 CREATE INDEX IF NOT EXISTS slots_device ON slots(device_id);
 CREATE TABLE IF NOT EXISTS leases (
   lease_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, device_id TEXT NOT NULL, file_id TEXT NOT NULL,
-  version INTEGER NOT NULL, expires_at TEXT NOT NULL, cancelled INTEGER NOT NULL DEFAULT 0);
+  version INTEGER NOT NULL, expires_at TEXT NOT NULL, cancelled INTEGER NOT NULL DEFAULT 0,
+  kind TEXT NOT NULL DEFAULT 'slot');
 CREATE INDEX IF NOT EXISTS leases_device ON leases(device_id);
 CREATE TABLE IF NOT EXISTS releases (
   receipt_id TEXT PRIMARY KEY, file_id TEXT NOT NULL, version INTEGER NOT NULL, device_id TEXT NOT NULL, ts TEXT NOT NULL);

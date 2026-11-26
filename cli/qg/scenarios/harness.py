@@ -40,6 +40,7 @@ class Server:
         self.proc: subprocess.Popen[str] | None = None
         self.lines: list[str] = []
         self.bootstrap: list[dict[str, Any]] = []
+        self.kit_path: Path | None = None  # operator's copy of the recovery kit, outside data/ and keys/
         self._reader: threading.Thread | None = None
 
     @classmethod
@@ -78,6 +79,8 @@ class Server:
         while time.monotonic() < deadline:
             try:
                 if httpx.get(self.url + "/healthz", timeout=1).status_code == 200:
+                    if self.kit_path is None and not (self.workdir / "keys" / "recovery-public.json").exists():
+                        self.issue_recovery_kit()
                     return self
             except httpx.HTTPError:
                 pass
@@ -85,6 +88,16 @@ class Server:
                 raise RuntimeError("server exited: " + " | ".join(self.lines[-5:]))
             time.sleep(0.1)
         raise RuntimeError("server did not start")
+
+    def issue_recovery_kit(self) -> Path:
+        """First-time setup as an operator would do it: python -m qg.admin recovery-kit init --out <file>."""
+        if self.kit_path is None:
+            out = self.workdir / "operator" / "recovery-kit.json"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run([sys.executable, "-m", "qg.admin", "recovery-kit", "init", "--out", str(out)],  # noqa: S603
+                           env=self.env, capture_output=True, text=True, timeout=60, check=True)
+            self.kit_path = out
+        return self.kit_path
 
     def _read(self) -> None:
         if self.proc is None or self.proc.stdout is None:

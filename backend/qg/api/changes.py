@@ -4,18 +4,20 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import timedelta
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Request
 from pydantic import Field
 
 from qg.api.common import page_params, paginate
+from qg.clock import fmt
 from qg.core import Core
 from qg.crypto import aead
 from qg.crypto.encoding import EncodingError, b64u, b64u_decode, canon
 from qg.crypto.kdf import sha256
 from qg.crypto.sign import mldsa_verify
-from qg.crypto.suite import RECOVERY_DEVICE_ID, SUITE
+from qg.crypto.suite import LEASE_SECONDS, RECOVERY_DEVICE_ID, SUITE
 from qg.directory.service import ROLES
 from qg.errors import QGError
 from qg.gateway.http import Ctx, Strict, authorize, body_openapi, core_of, gateway, json_body, live
@@ -292,13 +294,21 @@ def recover_file(file_id: str, request: Request, ctx: Ctx = gateway("recovery.re
         slot = conn.execute("SELECT * FROM slots WHERE file_id = ? AND version = ? AND device_id = ?",
                             (file_id, version, RECOVERY_DEVICE_ID)).fetchone()
         ver = conn.execute("SELECT * FROM file_versions WHERE file_id = ? AND version = ?", (file_id, version)).fetchone()
-        if slot is None or ver is None:
+        if ver is None:
             raise QGError("QG_NOT_FOUND", "not_found")
+        if slot is None:  # committed before a recovery kit was issued
+            raise QGError("QG_NOT_FOUND", "no_recovery_slot")
         inner = json.loads(aead.unseal(core.keys.seal_master, slot["seal_epoch"],
                                        aead.seal_aad(slot["slot_id"], file_id, version, RECOVERY_DEVICE_ID,
                                                      slot["seal_epoch"]), bytes(slot["sealed"])))
         rc = core.receipt(conn, action="recovery.release", decision="allow", reason="released:" + body.change_id,
                           subject=ctx.subject, request_hash=ctx.request_hash, resource=file_id, key_epoch=version)
+        lease_id = new_id("lse")
+        expires = fmt(core.clock.now() + timedelta(seconds=LEASE_SECONDS))
+        conn.execute("INSERT INTO leases (lease_id, session_id, device_id, file_id, version, expires_at, kind)"
+                     " VALUES (?,?,?,?,?,?,'recovery')", (lease_id, ctx.session_id, ctx.device_id, file_id, version,
+                                                          expires))
     ctx.set_receipt(rc["id"])
     return {"recovery_wrap": inner, "wrap_epoch": slot["wrap_epoch"], "manifest": json.loads(ver["manifest"]),
-            "manifest_sig": ver["manifest_sig"], "signer_device_id": ver["committed_by_device"], "version": version}
+            "manifest_sig": ver["manifest_sig"], "signer_device_id": ver["committed_by_device"], "version": version,
+            "file_id": file_id, "lease": {"lease_id": lease_id, "expires_at": expires}, "receipt_id": rc["id"]}

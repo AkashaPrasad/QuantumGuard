@@ -202,6 +202,24 @@ def cmd_open(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_recover(args: argparse.Namespace) -> int:
+    """Kit holder (an admin): open a file through its recovery wrap after a recovery_release change was applied."""
+    from qg.keys import load_recovery_kit
+
+    if os.path.exists(args.out) and not args.force:
+        raise CliError(f"{args.out} exists; use --force to overwrite")
+    try:
+        kit = load_recovery_kit(Path(args.kit))
+    except (OSError, ValueError, KeyError) as exc:
+        raise CliError(f"cannot read recovery kit: {exc}") from exc
+    with _login_cmd(args) as dev:
+        data = dev.recover(args.file_id, args.change, kit)
+    _write_private(args.out, data, force=args.force)
+    _emit(args, {"file_id": args.file_id, "change_id": args.change, "bytes": len(data), "out": args.out},
+          f"recovered {len(data)} bytes to {args.out}")
+    return 0
+
+
 def cmd_files(args: argparse.Namespace) -> int:
     with _login_cmd(args) as dev:
         files = _list_all(dev, "/api/v1/files")
@@ -497,6 +515,12 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--to", action="append", metavar="DEVICE_ID")
     s = add("open", cmd_open, "download and decrypt a file")
     s.add_argument("file_id")
+    s.add_argument("--out", required=True)
+    s.add_argument("--force", action="store_true")
+    s = add("recover", cmd_recover, "kit holder: open a file with the recovery kit after an applied recovery_release")
+    s.add_argument("file_id")
+    s.add_argument("--change", required=True, metavar="CHANGE_ID", help="applied recovery_release change")
+    s.add_argument("--kit", required=True, help="recovery kit file from `python -m qg.admin recovery-kit init`")
     s.add_argument("--out", required=True)
     s.add_argument("--force", action="store_true")
     add("files", cmd_files, "list files")

@@ -15,7 +15,7 @@ export QG_PORT
 COMPOSE   := bash $(ROOT)/scripts/compose.sh
 EXEC      := $(COMPOSE) exec -T quantumguard python
 
-.PHONY: help preflight setup requirements dev dev-api dev-web build up down seed demo dev-demo spec-lint \
+.PHONY: help preflight setup requirements dev dev-api dev-web build up down seed demo demo-kit recovery-kit dev-demo spec-lint \
         spec-export vectors test dev-test test-unit test-crypto test-api test-security test-detect \
         test-reliability test-perf test-e2e test-a11y web-lint web-typecheck lint types fuzz scan scan-secrets \
         bench readme-test verify scenarios dev-scenarios
@@ -60,11 +60,20 @@ up: ## docker compose up
 down: ## docker compose down
 	docker compose -f $(ROOT)/docker-compose.yml down
 
+recovery-kit: ## Issue the recovery kit once; the private half is printed to this terminal (keep it offline)
+	$(EXEC) -m qg.admin recovery-kit init
+
 seed: ## Enrol the seeded people in the running container through the public API
 	$(COMPOSE) exec -T -e QG_PASSPHRASE=$$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n') quantumguard \
 	  python -m qg.client demo seed --server http://127.0.0.1:8080 --dir /tmp/qg-demo
 
-demo: seed ## Seed the running container, then run the hero flow against it and leave the incident in place
+demo-kit:
+	@if $(EXEC) -m qg.admin recovery-kit init --out /tmp/qg-demo/recovery-kit.json; then \
+	  echo "demo recovery kit written inside the container at /tmp/qg-demo/recovery-kit.json (tmpfs, gone on restart)"; \
+	  echo "copy it out now if you want to keep it: docker compose cp quantumguard:/tmp/qg-demo/recovery-kit.json ."; \
+	else echo "recovery kit already issued earlier; continuing"; fi
+
+demo: demo-kit seed ## Issue the demo recovery kit, seed, run the hero flow against the server, leave the incident
 	$(COMPOSE) exec -T -e QG_URL=http://127.0.0.1:8080 quantumguard python -m qg.scenarios revoke
 
 dev-demo: ## Host variant: hero scenario against a throwaway local server

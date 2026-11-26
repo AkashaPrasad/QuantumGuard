@@ -33,6 +33,13 @@ class Database:
             self._conn.execute("PRAGMA synchronous=FULL")
             self._conn.execute("PRAGMA foreign_keys=ON")
             self._conn.executescript(SCHEMA)
+            self._migrate()
+
+    def _migrate(self) -> None:
+        """Additive migrations for databases created by earlier builds."""
+        cols = {r[1] for r in self._conn.execute("PRAGMA table_info(leases)")}
+        if "kind" not in cols:
+            self._conn.execute("ALTER TABLE leases ADD COLUMN kind TEXT NOT NULL DEFAULT 'slot'")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:

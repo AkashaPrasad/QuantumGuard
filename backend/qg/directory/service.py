@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Callable
 from datetime import timedelta
 from typing import Any
 
@@ -17,9 +18,9 @@ ROLES = ("admin", "auditor", "employee", "operator")
 
 
 class Directory:
-    def __init__(self, signer: DualSigner, recovery_pk: bytes, clock: Clock) -> None:
+    def __init__(self, signer: DualSigner, recovery_pk: Callable[[], bytes | None], clock: Clock) -> None:
         self.signer = signer
-        self.recovery_pk = recovery_pk
+        self.recovery_pk = recovery_pk  # None until `qg.admin recovery-kit init` has run
         self.clock = clock
 
     # ---- reads -------------------------------------------------------------------------------
@@ -92,7 +93,7 @@ class Directory:
                 "users": users,
                 "devices": devices,
                 "revoked": revoked,
-                "recovery_pk": b64u(self.recovery_pk),
+                "recovery_pk": (lambda pk: b64u(pk) if pk else None)(self.recovery_pk()),
             },
             "directory",
         )

@@ -81,9 +81,10 @@ class Core:
         self._log_sink = log_sink
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         self.keys, _ = keymod.load_or_create(settings.keys_dir)
+        self.recovery = keymod.RecoveryPublicKey(settings.keys_dir)
         self.db = Database(settings.data_dir / "quantumguard.sqlite")
         self.blobs = BlobStore(settings.data_dir / "blobs")
-        self.directory = Directory(self.keys.signer, self.keys.recovery_pk, self.clock)
+        self.directory = Directory(self.keys.signer, self.recovery.get, self.clock)
         self.log = EvidenceLog(self.db, self.keys.signer, self.clock)
         self.secrets = SecretStore()
         self.buckets = TokenBuckets()
@@ -92,6 +93,9 @@ class Core:
         self.detector = Detector(self)
         self.started_mono = time.monotonic()
         self.bootstrap_invites = self._first_start()
+        if keymod.legacy_kit_present(settings.keys_dir):
+            self.log_event("recovery_kit_in_keys_volume",
+                           action="run python -m qg.admin recovery-kit move-legacy --out <path outside the volumes>")
         self._stop = threading.Event()
         self._ticker: threading.Thread | None = None
 

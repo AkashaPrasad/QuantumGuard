@@ -279,6 +279,23 @@ downloads chunks with `QG-Lease`, checks `ciphertext_sha256` and decrypts per 7.
 Vectors: `spec/vectors/envelope.json` (full file: DEK, `P`, plaintext, chunk blobs, hash; a wrap
 with its `ss`, `KEK`, nonce and output; negative cases).
 
+### 7.7 Recovery kit
+
+The recovery kit is an X-Wing key pair whose private half the server never holds.
+`python -m qg.admin recovery-kit init [--out PATH]` generates it, writes the private half (format
+`qg-recovery-kit/1`: `{format, suite, created_at, kem_seed, recovery_pk, note}`) to its own stdout or to
+`PATH` (refused inside the data or keys volume, mode 0600), and only then stores the public half in the
+keys volume and publishes a directory epoch carrying `recovery_pk`. A second run is refused.
+
+- Before a kit exists `recovery_pk` is `null` in `GET /meta` and the directory, and a commit must not carry
+  `recovery_wrap`. Afterwards every commit must carry it (`QG_INVALID_INPUT` / `recovery_wrap_required`).
+- `POST /files/{id}/recover {change_id}` (admin, applied `recovery_release` with two approvals) returns the
+  unsealed recovery wrap with `wrap_epoch`, `version`, `manifest`, `manifest_sig`, `signer_device_id` and a
+  recovery lease (`lease:{lease_id, expires_at}`) bound to the caller's session for chunk downloads. Each
+  change releases once. The kit holder unwraps with binding `device_id = "recovery"`.
+- A copy of the data and keys volumes can unseal the outer seal of a recovery slot but cannot open the inner
+  wrap: the kit's private key is in neither volume.
+
 ## 8. Directory
 
 ### 8.1 Epochs
@@ -297,7 +314,8 @@ The directory has an integer `epoch` starting at 1 that increases by exactly 1 f
 
 ### 8.3 Directory object
 
-As `spec/API.md` 3.1. `users` sorted by `user_id`, each `roles` sorted; `devices` (certificate
+As `spec/API.md` 3.1, with `recovery_pk` `null` until a recovery kit is issued (7.7). `users` sorted by
+`user_id`, each `roles` sorted; `devices` (certificate
 fields without signatures) sorted by `device_id`; `revoked` sorted by `device_id`. Dual-signed,
 purpose `directory`, signing input `canon(directory without "signatures")`.
 
@@ -474,11 +492,17 @@ Vectors: `spec/vectors/keystore.json`.
 - Limits (also in `GET /meta`): `chunk_bytes` 1048576, `max_file_bytes` 104857600,
   `max_recipients` 32, `lease_seconds` 60, `session_ttl_seconds` 600,
   `session_hard_cap_seconds` 3600. JSON bodies at most 256 KiB and nesting depth 16.
-- Invites: single use, 15 minutes, server stores `SHA-256(code)` only. Codes are 20 characters of
-  b64u from 15 random bytes.
-- **Deviation:** bootstrap invites printed at first start (one per seeded person) are single use
-  but live **24 hours**, so a judge has time to use them. Every invite created later through the
-  API lives 15 minutes.
+- Invites: single use, 15 minutes, server stores `SHA-256(normalised code)` only. Codes are 16
+  characters of Crockford base32 (`0-9 A-Z` without `I L O U`, 80 bits from 10 random bytes) shown in
+  four groups, e.g. `K7QM-2XVD-9RTA-HB4N`. Before hashing the server normalises what it receives:
+  trim, upper-case, drop hyphens and spaces, read `O` as `0` and `I` or `L` as `1` (`spec/API.md` 4.1).
+- The server never prints or logs a code. Codes for the seeded people come only from the local command
+  `python -m qg.admin invite --all --json` (or `--user-id`), printed to that command's own stdout.
+- **Deviation:** those admin-issued codes for seeded people are single use but live **24 hours**, so an
+  evaluator has time to use them; issuing a new one for a person cancels that person's previous one. Every
+  invite created through the API lives 15 minutes.
+- The recovery kit is issued once by `python -m qg.admin recovery-kit init` (section 7.7). Until then
+  `recovery_pk` is `null` and commits carry no recovery wrap.
 
 ## 17. Vector files
 

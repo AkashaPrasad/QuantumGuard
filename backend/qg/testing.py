@@ -56,7 +56,7 @@ def _clock(clock: Clock | Callable[[], datetime] | None) -> Clock:
 
 def create_test_app(*, data_dir: Path, keys_dir: Path, clock: Clock | Callable[[], datetime] | None = None,
                     log_sink: Callable[[str], None] | None = None, demo: bool = False,
-                    public_rate: tuple[float, float] | None = (50.0, 500.0)) -> FastAPI:
+                    public_rate: tuple[float, float] | None = (50.0, 500.0), recovery_kit: bool = True) -> FastAPI:
     """A fully initialised production app on fresh storage. `app.state.core` is the runtime;
     `app.state.captured_logs` holds every stdout line the server would have printed, and
     `app.state.bootstrap_invites` the seeded people with codes as `qg.admin invite --all` would print them
@@ -74,7 +74,18 @@ def create_test_app(*, data_dir: Path, keys_dir: Path, clock: Clock | Callable[[
         # In-process clients share one address and test clocks do not advance by themselves, so the
         # per-address handshake limit is widened here (pass public_rate=None to keep production values).
         core.public_rate = public_rate
+    kit = None
+    if recovery_kit:
+        # what `python -m qg.admin recovery-kit init` does: the private half stays with the operator (here: in
+        # memory, app.state.recovery_kit), only the public key lands in the keys volume
+        from qg import keys as keymod
+
+        kit, public_key = keymod.new_recovery_kit(core.clock.iso())
+        keymod.activate_recovery_public_key(Path(keys_dir), public_key, core.clock.iso())
+        with core.db.tx() as conn:
+            core.directory.publish(conn, "recovery_kit")
     app = create_app(core)
+    app.state.recovery_kit = kit
     app.state.captured_logs = logs
     app.state.bootstrap_invites = core.issue_bootstrap_invites()  # what `python -m qg.admin invite --all` prints
     return app
@@ -101,6 +112,7 @@ class TestEnv:
         self.http = TestClient(self.app, base_url="http://testserver")
         self.client = QGClient(self.http)
         self.people: dict[str, dict[str, Any]] = {p["name"]: p for p in self.app.state.bootstrap_invites}
+        self.recovery_kit: dict[str, Any] | None = self.app.state.recovery_kit
         self.devices: dict[str, Any] = {}
 
     @property

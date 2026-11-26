@@ -107,7 +107,10 @@ components:
           title: Manifest Sig
           type: string
         recovery_wrap:
-          $ref: '#/components/schemas/InnerWrap'
+          anyOf:
+          - $ref: '#/components/schemas/InnerWrap'
+          - type: 'null'
+          default: null
         wraps:
           items:
             $ref: '#/components/schemas/Wrap'
@@ -119,7 +122,6 @@ components:
       - manifest
       - manifest_sig
       - wraps
-      - recovery_wrap
       title: Commit
       type: object
     DeviceRename:

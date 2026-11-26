@@ -5,6 +5,12 @@
     python -m qg.admin policy-sign                  accept the current rules.yaml as the signed bundle
     python -m qg.admin policy-down | policy-up      operational switch: policy engine unavailable (fail closed)
     python -m qg.admin decoys --json                ids of planted decoy objects (for drills)
+    python -m qg.admin recovery-kit init [--out PATH]
+                                                    issue the recovery kit once: the private half goes to stdout
+                                                    or PATH (outside the data and keys volumes); the server keeps
+                                                    only the public key
+    python -m qg.admin recovery-kit move-legacy --out PATH
+                                                    move a kit that an older build left in the keys volume
 
 Codes go to this command's standard output only; the server never prints or logs them.
 """
@@ -13,7 +19,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from pathlib import Path
 
 from qg.config import Settings
 
@@ -38,6 +46,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("policy-up")
     dec = sub.add_parser("decoys")
     dec.add_argument("--json", action="store_true")
+    kit = sub.add_parser("recovery-kit")
+    kit.add_argument("action", choices=["init", "move-legacy"])
+    kit.add_argument("--out", help="file for the private kit (outside QG_DATA_DIR and QG_KEYS_DIR)")
     args = p.parse_args(argv)
     settings = Settings.from_env()
 
@@ -50,6 +61,9 @@ def main(argv: list[str] | None = None) -> int:
         (settings.data_dir / "policy.down").unlink(missing_ok=True)
         print(json.dumps({"policy": "available"}))
         return 0
+
+    if args.cmd == "recovery-kit":
+        return _recovery_kit(args, settings)
 
     core = _core()
     try:
@@ -77,6 +91,73 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         core.db.close()
     return 2
+
+
+def _outside_volumes(path: Path, settings: Settings) -> bool:
+    p = path.resolve()
+    return not any(p == d or p.is_relative_to(d) for d in (settings.data_dir.resolve(), settings.keys_dir.resolve()))
+
+
+def _write_kit(doc: dict, out: str | None, settings: Settings) -> None:
+    text = json.dumps(doc, indent=2, sort_keys=True) + "\n"
+    if out is None:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+        return
+    path = Path(out)
+    if not _outside_volumes(path, settings):
+        raise ValueError("the kit must not be written inside the data or keys volume")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+def _recovery_kit(args: argparse.Namespace, settings: Settings) -> int:
+    from qg import keys
+
+    if args.action == "move-legacy":
+        legacy = settings.keys_dir / keys.LEGACY_RECOVERY_FILE
+        if not legacy.exists():
+            print(json.dumps({"error": "no_legacy_kit"}), file=sys.stderr)
+            return 1
+        if not args.out:
+            print(json.dumps({"error": "out_required"}), file=sys.stderr)
+            return 2
+        try:
+            _write_kit(json.loads(legacy.read_text()), args.out, settings)
+        except (ValueError, FileExistsError) as exc:
+            print(json.dumps({"error": str(exc)}), file=sys.stderr)
+            return 1
+        legacy.unlink()  # the operator now holds the kit at --out
+        print(json.dumps({"moved_to": str(Path(args.out).resolve())}), file=sys.stderr)
+        return 0
+
+    core = _core()
+    try:
+        if core.recovery.get() is not None:
+            print(json.dumps({"error": "already_issued"}), file=sys.stderr)
+            return 1
+        now = core.clock.iso()
+        doc, public_key = keys.new_recovery_kit(now)
+        try:
+            _write_kit(doc, args.out, settings)  # the private half reaches the operator before anything uses it
+        except (ValueError, FileExistsError, OSError) as exc:
+            print(json.dumps({"error": str(exc)}), file=sys.stderr)
+            return 1
+        try:
+            keys.activate_recovery_public_key(settings.keys_dir, public_key, now)
+        except keys.RecoveryKitError:
+            print(json.dumps({"error": "already_issued", "detail": "another kit was issued concurrently; discard "
+                              "the kit just written"}), file=sys.stderr)
+            return 1
+        with core.db.tx() as conn:
+            epoch = core.directory.publish(conn, "recovery_kit")["epoch"]
+        print(json.dumps({"recovery_kit": "issued", "directory_epoch": epoch,
+                          "written_to": str(Path(args.out).resolve()) if args.out else "stdout"}), file=sys.stderr)
+        return 0
+    finally:
+        core.db.close()
 
 
 if __name__ == "__main__":

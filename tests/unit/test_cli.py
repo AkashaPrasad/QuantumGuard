@@ -132,3 +132,34 @@ def test_selftest(cli):
     assert res["selftest"] == "pass" and len(res["checks"]) >= 6
     assert all(c["ok"] for c in res["checks"])
     cli.run("selftest")
+
+
+def test_recover_with_kit_after_two_approvals(cli, server, tmp_path):
+    from qg.client import QGClient
+    from qg.client.device import DeviceState
+
+    aiko_ks, _ = enroll(cli, server, tmp_path, "Aiko Tanaka", "aiko")
+    mira_ks, _ = enroll(cli, server, tmp_path, "Mira Okafor", "mira")
+    src = tmp_path / "plain.bin"
+    src.write_bytes(b"recoverable " * 5000)
+    fid = cli.json("protect", src, "--classification", "restricted", "--keystore", aiko_ks)["file_id"]
+
+    client = QGClient(server.url)
+    mira = client.device(DeviceState.load(str(mira_ks), "correct horse battery staple"))
+    mira.login()
+    tomas = client.enroll(server.code("Tomas Lindqvist"), "tomas")
+    priya = client.enroll(server.code("Priya Raman"), "priya")
+    tomas.login()
+    priya.login()
+    aiko_uid = next(u["user_id"] for u in mira.refresh_directory()["users"] if u["name"] == "Aiko Tanaka")
+    change = mira.request_change("recovery_release", aiko_uid, file_id=fid, reason="devices destroyed")
+    out = tmp_path / "recovered.bin"
+    cap = cli.run("recover", fid, "--change", change["id"], "--kit", server.kit_path, "--out", out,
+                  "--keystore", mira_ks, expect=1)
+    assert "QG_DENY_POLICY" in cap.err and "approvals_incomplete" in cap.err and not out.exists()
+    tomas.approve_change(change)
+    priya.approve_change(tomas.get("/api/v1/changes?status=pending")["items"][0])
+    res = cli.json("recover", fid, "--change", change["id"], "--kit", server.kit_path, "--out", out,
+                   "--keystore", mira_ks)
+    assert res["bytes"] == src.stat().st_size and out.read_bytes() == src.read_bytes()
+    assert oct(out.stat().st_mode & 0o777) == "0o600"

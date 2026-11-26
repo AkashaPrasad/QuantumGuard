@@ -221,14 +221,14 @@ class Device:
             "suite": SUITE,
             "version": version,
         }
-        recovery_pk = b64u_decode(directory["recovery_pk"])
-        commit = {
+        commit: dict[str, Any] = {
             "manifest": manifest,
             "manifest_sig": b64u(self.state.keys.sig.sign(canon(manifest), "manifest")),
             "wraps": self._wraps_for(recips, dek, file_id, version, epoch),
-            "recovery_wrap": aead.wrap_dek(recovery_pk, dek,
-                                           aead.wrap_binding(file_id, version, RECOVERY_DEVICE_ID, epoch)),
         }
+        if directory.get("recovery_pk"):  # absent until the operator issues a recovery kit
+            commit["recovery_wrap"] = aead.wrap_dek(b64u_decode(directory["recovery_pk"]), dek,
+                                                    aead.wrap_binding(file_id, version, RECOVERY_DEVICE_ID, epoch))
         return self.post(f"/api/v1/files/{file_id}/versions/{version}/commit", commit)
 
     def protect(self, name: str, data: bytes, classification: str = "confidential",
@@ -293,6 +293,25 @@ class Device:
             "share_sig": b64u(self.state.keys.sig.sign(canon(statement), "share")),
             "wraps": self._wraps_for(recips, dek, file_id, slot["version"], epoch),
         })
+
+    def recover(self, file_id: str, change_id: str, kit: xwing.XWingPrivateKey) -> bytes:
+        """Kit holder: fetch the recovery wrap released by an applied recovery_release change, unwrap it with the
+        offline kit, and download and decrypt the file under the recovery lease."""
+        rel = self.post(f"/api/v1/files/{file_id}/recover", {"change_id": change_id})
+        manifest = rel["manifest"]
+        signer_pk = self.signer_key(rel["signer_device_id"], manifest["directory_epoch"])
+        if signer_pk is None or not mldsa_verify(signer_pk, b64u_decode(rel["manifest_sig"]), canon(manifest),
+                                                 "manifest"):
+            raise ClientRefused("manifest signature")
+        if manifest["file_id"] != file_id or manifest["version"] != rel["version"]:
+            raise ClientRefused("manifest does not match the release")
+        binding = aead.wrap_binding(file_id, rel["version"], RECOVERY_DEVICE_ID, rel["wrap_epoch"])
+        try:
+            dek = aead.unwrap_dek(kit, rel["recovery_wrap"], binding)
+        except aead.AeadError as exc:
+            raise ClientRefused("recovery wrap (wrong kit?)") from exc
+        blobs = [self.chunk(file_id, i, rel["lease"]["lease_id"]) for i in range(manifest["chunk_count"])]
+        return self.decrypt({"file_id": file_id, "version": rel["version"], "manifest": manifest}, dek, blobs)
 
     def rekey_pending(self) -> dict[str, Any]:
         return self.get("/api/v1/rekey/pending")

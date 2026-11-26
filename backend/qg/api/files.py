@@ -306,7 +306,7 @@ class Commit(Strict):
     manifest: Manifest
     manifest_sig: B64
     wraps: Annotated[list[Wrap], Field(min_length=1, max_length=MAX_RECIPIENTS)]
-    recovery_wrap: InnerWrap
+    recovery_wrap: InnerWrap | None = None  # required once a recovery kit has been issued, absent before
 
 
 def _check_wrap(w: InnerWrap) -> dict[str, str]:
@@ -358,7 +358,10 @@ def commit_version(file_id: str, version: int, request: Request, ctx: Ctx = gate
     if m.file_id != file_id or m.version != version:
         raise QGError("QG_INVALID_INPUT", "manifest_mismatch")
     inners = {w.device_id: _check_wrap(w) for w in body.wraps}
-    recovery = _check_wrap(body.recovery_wrap)
+    have_kit = core.recovery.get() is not None
+    if have_kit != (body.recovery_wrap is not None):
+        raise QGError("QG_INVALID_INPUT", "recovery_wrap_required" if have_kit else "no_recovery_key")
+    recovery = _check_wrap(body.recovery_wrap) if body.recovery_wrap is not None else None
     try:
         sig = b64u_decode(body.manifest_sig)
     except EncodingError:
@@ -417,7 +420,8 @@ def commit_version(file_id: str, version: int, request: Request, ctx: Ctx = gate
         old = conn.execute("SELECT current_version FROM files WHERE file_id = ?", (file_id,)).fetchone()[0]
         for did in recips:
             _seal_slot(core, conn, file_id, version, did, inners[did], m.directory_epoch)
-        _seal_slot(core, conn, file_id, version, RECOVERY_DEVICE_ID, recovery, m.directory_epoch)
+        if recovery is not None:
+            _seal_slot(core, conn, file_id, version, RECOVERY_DEVICE_ID, recovery, m.directory_epoch)
         now = core.clock.iso()
         conn.execute("UPDATE file_versions SET status = 'committed', manifest = ?, manifest_sig = ?,"
                      " ciphertext_sha256 = ?, committed_at = ?, committed_by_device = ? WHERE file_id = ? AND version = ?",
@@ -510,14 +514,17 @@ def get_chunk(file_id: str, index: int, request: Request, ctx: Ctx = gateway("ch
     with core.db.tx() as conn:
         live(core, conn, ctx)
         row = file_row(conn, file_id)
-        if row is None or not (row["owner_user_id"] == ctx.user_id or person_has_slot(conn, file_id, ctx.user_id)):
-            raise QGError("QG_NOT_FOUND", "not_found")
         lease = conn.execute("SELECT * FROM leases WHERE lease_id = ?", (lease_id,)).fetchone() if is_id(
             lease_id, "lse") else None
+        recovery_lease = row is not None and lease is not None and lease["kind"] == "recovery"
+        if row is None or not (recovery_lease or row["owner_user_id"] == ctx.user_id
+                               or person_has_slot(conn, file_id, ctx.user_id)):
+            raise QGError("QG_NOT_FOUND", "not_found")
         ok = (lease is not None and not lease["cancelled"] and lease["device_id"] == ctx.device_id
+              and lease["session_id"] == ctx.session_id
               and lease["file_id"] == file_id and lease["version"] == row["current_version"]
               and parse(lease["expires_at"]) > core.clock.now()
-              and holds_slot(conn, file_id, row["current_version"], ctx.device_id))
+              and (recovery_lease or holds_slot(conn, file_id, row["current_version"], ctx.device_id)))
         if ok:
             ver = conn.execute("SELECT chunk_count FROM file_versions WHERE file_id = ? AND version = ?",
                                (file_id, row["current_version"])).fetchone()
