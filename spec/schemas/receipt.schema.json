@@ -1,0 +1,133 @@
+{
+  "$id": "receipt.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "examples": [
+    {
+      "action": "slot.release",
+      "decision": "allow",
+      "directory_epoch": 4,
+      "id": "rcp_AAAAAAAAAAAAAAAAAAAAAA",
+      "key_epoch": 1,
+      "leaf_index": 12,
+      "matched_rules": [
+        "P-FILE-HOLDER"
+      ],
+      "policy_bundle_hash": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+      "reason_code": "released",
+      "request_hash": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+      "resource": "fil_AAAAAAAAAAAAAAAAAAAAAA",
+      "subject": {
+        "device_id": "dev_AAAAAAAAAAAAAAAAAAAAAA",
+        "session_id": "ses_AAAAAAAAAAAAAAAAAAAAAA",
+        "user_id": "usr_AAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "suite": "QG-1",
+      "ts": "2026-11-26T12:00:00.000Z"
+    }
+  ],
+  "properties": {
+    "action": {
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "allow",
+        "deny"
+      ]
+    },
+    "directory_epoch": {
+      "type": "integer"
+    },
+    "id": {
+      "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+      "type": "string"
+    },
+    "key_epoch": {
+      "type": "integer"
+    },
+    "leaf_index": {
+      "type": "integer"
+    },
+    "matched_rules": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "policy_bundle_hash": {
+      "description": "base64url without padding",
+      "pattern": "^[A-Za-z0-9_-]*$",
+      "type": "string"
+    },
+    "reason_code": {
+      "type": "string"
+    },
+    "request_hash": {
+      "description": "base64url without padding",
+      "pattern": "^[A-Za-z0-9_-]*$",
+      "type": "string"
+    },
+    "resource": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "subject": {
+      "additionalProperties": false,
+      "properties": {
+        "device_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "user_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "device_id",
+        "session_id",
+        "user_id"
+      ],
+      "type": "object"
+    },
+    "suite": {
+      "const": "QG-1"
+    },
+    "ts": {
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}Z$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "action",
+    "decision",
+    "directory_epoch",
+    "id",
+    "key_epoch",
+    "leaf_index",
+    "matched_rules",
+    "policy_bundle_hash",
+    "reason_code",
+    "request_hash",
+    "resource",
+    "subject",
+    "suite",
+    "ts"
+  ],
+  "title": "receipt",
+  "type": "object"
+}

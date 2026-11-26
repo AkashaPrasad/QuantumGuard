@@ -13,9 +13,8 @@ are listed in `web/package.json` and `web/pnpm-lock.yaml`.
 | `argon2-cffi` | 25.1.0 | Argon2id for the passphrase-protected device keystore |
 | `fastapi` | 0.162.5 | HTTP API, request validation, OpenAPI export |
 | `pydantic` | 2.14.3 | Strict request and response models (unknown fields rejected) |
-| `uvicorn[standard]` | 0.54.0 | ASGI server |
-| `httpx` | 0.28.1 | HTTP client used by the `qg` CLI, scenarios and tests |
-| `typer` | 0.29.1 | `qg` command-line interface (pulls in `rich` for terminal output) |
+| `uvicorn` | 0.54.0 | ASGI server (plain asyncio and h11; no optional extras) |
+| `httpx` | 0.28.1 | HTTP client used by the `qg` CLI (standard-library argparse), scenarios and tests |
 | `structlog` | 26.1.0 | Structured JSON logs with no secrets |
 | `pyyaml` | 6.0.3 | Reads the signed policy bundle `rules.yaml` (safe loader only) |
 

@@ -1,0 +1,170 @@
+{
+  "$id": "proof-bundle.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "examples": [
+    {
+      "checkpoint": {
+        "root_hash": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+        "signatures": {
+          "ed25519": "c2lnbmF0dXJlLWV4YW1wbGU",
+          "mldsa": "bWxkc2Etc2lnbmF0dXJlLWV4YW1wbGU"
+        },
+        "suite": "QG-1",
+        "tree_size": 13,
+        "ts": "2026-11-26T12:00:00.000Z"
+      },
+      "consistency": [],
+      "directory": {},
+      "entries": [],
+      "exposure": {},
+      "format": "qg-proof-bundle/1",
+      "generated_at": "2026-11-26T12:00:00.000Z",
+      "incident_id": "inc_AAAAAAAAAAAAAAAAAAAAAA",
+      "revocation_checkpoint": null,
+      "server_keys": {
+        "ed25519_pk": "ZWQ",
+        "mldsa_pk": "bWw"
+      },
+      "signatures": {
+        "ed25519": "c2lnbmF0dXJlLWV4YW1wbGU",
+        "mldsa": "bWxkc2Etc2lnbmF0dXJlLWV4YW1wbGU"
+      },
+      "suite": "QG-1"
+    }
+  ],
+  "properties": {
+    "checkpoint": {
+      "$ref": "checkpoint.schema.json"
+    },
+    "consistency": {
+      "items": {
+        "description": "base64url without padding",
+        "pattern": "^[A-Za-z0-9_-]*$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "directory": {
+      "$ref": "directory.schema.json"
+    },
+    "entries": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "audit_path": {
+            "items": {
+              "description": "base64url without padding",
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "leaf_hash": {
+            "description": "base64url without padding",
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "type": "string"
+          },
+          "leaf_index": {
+            "type": "integer"
+          },
+          "receipt": {
+            "$ref": "receipt.schema.json"
+          }
+        },
+        "required": [
+          "audit_path",
+          "leaf_hash",
+          "leaf_index",
+          "receipt"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "exposure": {
+      "type": "object"
+    },
+    "format": {
+      "const": "qg-proof-bundle/1"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}Z$",
+      "type": "string"
+    },
+    "incident_id": {
+      "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+      "type": "string"
+    },
+    "revocation_checkpoint": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "checkpoint.schema.json"
+        }
+      ]
+    },
+    "server_keys": {
+      "additionalProperties": false,
+      "properties": {
+        "ed25519_pk": {
+          "description": "base64url without padding",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "mldsa_pk": {
+          "description": "base64url without padding",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ed25519_pk",
+        "mldsa_pk"
+      ],
+      "type": "object"
+    },
+    "signatures": {
+      "additionalProperties": false,
+      "properties": {
+        "ed25519": {
+          "description": "base64url without padding",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "mldsa": {
+          "description": "base64url without padding",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ed25519",
+        "mldsa"
+      ],
+      "type": "object"
+    },
+    "suite": {
+      "const": "QG-1"
+    }
+  },
+  "required": [
+    "checkpoint",
+    "consistency",
+    "directory",
+    "entries",
+    "exposure",
+    "format",
+    "generated_at",
+    "incident_id",
+    "revocation_checkpoint",
+    "server_keys",
+    "signatures",
+    "suite"
+  ],
+  "title": "proof-bundle",
+  "type": "object"
+}

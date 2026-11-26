@@ -64,8 +64,8 @@ seed: ## Enrol the seeded people in the running container through the public API
 	$(COMPOSE) exec -T -e QG_PASSPHRASE=$$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n') quantumguard \
 	  python -m qg.client demo seed --server http://127.0.0.1:8080 --dir /tmp/qg-demo
 
-demo: seed ## Seed the running container, then run the hero scenario inside it
-	$(EXEC) -m qg.scenarios revoke
+demo: seed ## Seed the running container, then run the hero flow against it and leave the incident in place
+	$(COMPOSE) exec -T -e QG_URL=http://127.0.0.1:8080 quantumguard python -m qg.scenarios revoke
 
 dev-demo: ## Host variant: hero scenario against a throwaway local server
 	$(PY) python -m qg.scenarios revoke
@@ -92,7 +92,7 @@ test-crypto: ## Known-answer and property tests in both languages
 	@if [ -d $(ROOT)/web/node_modules ]; then $(WEB) test:crypto; fi
 
 test-api: ## Endpoint tests against the contract
-	$(PYTEST) -n auto tests/api
+	$(PYTEST) -n auto -m "not fuzz" tests/api
 
 test-security: ## Negative security tests per claim and regression tests for fixed findings
 	$(PYTEST) tests/security tests/attacks
@@ -124,7 +124,7 @@ lint: ## ruff and bandit on Python code, and the web linter when the web app is 
 	@if [ -d $(ROOT)/web/node_modules ]; then $(WEB) lint; fi
 
 types: ## mypy on the Python packages, and the web type check when installed
-	$(PY) mypy backend/qg cli/qg
+	$(PY) mypy --config-file $(ROOT)/backend/pyproject.toml backend/qg cli/qg
 	@if [ -d $(ROOT)/web/node_modules ]; then $(WEB) typecheck; fi
 
 test: ## Full suite inside the test image (Docker only)
@@ -133,7 +133,7 @@ test: ## Full suite inside the test image (Docker only)
 dev-test: test-unit test-crypto test-api test-detect test-reliability test-security ## Full suite on the host
 
 fuzz: ## Schemathesis against the OpenAPI document (no 5xx, no schema violations)
-	$(PY) python -m qg.testing fuzz
+	$(PYTEST) -m fuzz tests/api/test_fuzz.py
 
 ## ---- scenarios (one JSON line on stdout, exit 0 on pass) -----------------------------------
 # make scenario-NAME runs inside the running container; make dev-scenario-NAME runs on the host.

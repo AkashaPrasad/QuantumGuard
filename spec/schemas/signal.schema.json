@@ -1,0 +1,52 @@
+{
+  "$id": "signal.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "examples": [
+    {
+      "aud": "quantumguard",
+      "events": {
+        "https://schemas.openid.net/secevent/caep/event-type/session-revoked": {
+          "event_timestamp": 1795694400,
+          "subject": {
+            "format": "opaque",
+            "id": "dev_AAAAAAAAAAAAAAAAAAAAAA"
+          }
+        }
+      },
+      "iat": 1795694400,
+      "iss": "sandbox-idp",
+      "jti": "3f6c1d0e9b2a4c7d"
+    }
+  ],
+  "properties": {
+    "aud": {
+      "const": "quantumguard"
+    },
+    "events": {
+      "maxProperties": 1,
+      "minProperties": 1,
+      "type": "object"
+    },
+    "iat": {
+      "type": "integer"
+    },
+    "iss": {
+      "maxLength": 200,
+      "type": "string"
+    },
+    "jti": {
+      "maxLength": 128,
+      "type": "string"
+    }
+  },
+  "required": [
+    "aud",
+    "events",
+    "iat",
+    "iss",
+    "jti"
+  ],
+  "title": "signal",
+  "type": "object"
+}

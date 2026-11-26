@@ -1,6 +1,9 @@
 """Objective 2, security control: a device is reported lost with a loss time in the past. Measures time to
 enforce, lists exposed / held / never-released files, shows the lost device is denied (QG-R001), re-keys
-every affected file from a remaining device, and reports the forced checkpoint."""
+every affected file from a remaining device, and reports the forced checkpoint.
+
+With QG_URL set (make demo) it runs against that live server and leaves the incident, its timeline, the
+QG-R001 alert and the receipts in place for the operator console."""
 
 from __future__ import annotations
 
@@ -13,7 +16,7 @@ from qg.scenarios.harness import Server, result
 
 
 def run() -> int:
-    srv = Server().start()
+    srv = Server.from_env().start()
     try:
         client = QGClient(srv.url)
         laptop = client.enroll(srv.code("Aiko Tanaka"), "Aiko's laptop")
@@ -23,6 +26,8 @@ def run() -> int:
         phone.login()
         daniel = client.enroll(srv.code("Daniel Mensah"), "Daniel's laptop")
         daniel.login()
+        priya = client.enroll(srv.code("Priya Raman"), "Priya's console")
+        priya.login()
 
         others = [phone.device_id, daniel.device_id]
         files = {
@@ -50,11 +55,8 @@ def run() -> int:
                 denied.append(False)
             except ApiError as e:
                 denied.append(e.code == "QG_DENY_REVOKED")
-        deadline = time.monotonic() + 3
-        alerts = []
-        while time.monotonic() < deadline and not alerts:
-            alerts = [a for a in srv.events("alert") if a.get("rule_id") == "QG-R001"]
-            time.sleep(0.05)
+        alerts = [a for a in priya.get("/api/v1/alerts?rule_id=QG-R001&limit=200")["items"]
+                  if a["subject"]["device_id"] == laptop.device_id and a["incident_id"] == incident]
 
         exposure = phone.get(f"/api/v1/incidents/{incident}/exposure")
         groups = {k: sorted(f["file_id"] for f in exposure[k]) for k in ("exposed", "held", "never_released")}

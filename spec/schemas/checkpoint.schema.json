@@ -1,0 +1,65 @@
+{
+  "$id": "checkpoint.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "examples": [
+    {
+      "root_hash": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+      "signatures": {
+        "ed25519": "c2lnbmF0dXJlLWV4YW1wbGU",
+        "mldsa": "bWxkc2Etc2lnbmF0dXJlLWV4YW1wbGU"
+      },
+      "suite": "QG-1",
+      "tree_size": 13,
+      "ts": "2026-11-26T12:00:00.000Z"
+    }
+  ],
+  "properties": {
+    "root_hash": {
+      "description": "base64url without padding",
+      "pattern": "^[A-Za-z0-9_-]*$",
+      "type": "string"
+    },
+    "signatures": {
+      "additionalProperties": false,
+      "properties": {
+        "ed25519": {
+          "description": "base64url without padding",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "mldsa": {
+          "description": "base64url without padding",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ed25519",
+        "mldsa"
+      ],
+      "type": "object"
+    },
+    "suite": {
+      "const": "QG-1"
+    },
+    "tree_size": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "ts": {
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}Z$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "root_hash",
+    "signatures",
+    "suite",
+    "tree_size",
+    "ts"
+  ],
+  "title": "checkpoint",
+  "type": "object"
+}

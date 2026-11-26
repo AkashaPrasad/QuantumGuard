@@ -11,7 +11,6 @@ tests drive real enrolled devices through the public HTTP API with the `qg` clie
 from __future__ import annotations
 
 import json
-import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,7 +24,8 @@ from qg.config import Settings
 from qg.core import Core
 from qg.gateway.http import gateway_dependency  # noqa: F401 - re-exported for route inventory tests
 
-__all__ = ["CallableClock", "TestEnv", "create_test_app", "gateway_dependency", "set_policy_available"]
+__all__ = ["CallableClock", "TestEnv", "create_test_app", "gateway_dependency", "security_case",
+           "set_policy_available"]
 
 
 class CallableClock(Clock):
@@ -55,7 +55,8 @@ def _clock(clock: Clock | Callable[[], datetime] | None) -> Clock:
 
 
 def create_test_app(*, data_dir: Path, keys_dir: Path, clock: Clock | Callable[[], datetime] | None = None,
-                    log_sink: Callable[[str], None] | None = None, demo: bool = False) -> FastAPI:
+                    log_sink: Callable[[str], None] | None = None, demo: bool = False,
+                    public_rate: tuple[float, float] | None = (50.0, 500.0)) -> FastAPI:
     """A fully initialised production app on fresh storage. `app.state.core` is the runtime;
     `app.state.captured_logs` holds every stdout line the server would have printed, and
     `app.state.bootstrap_invites` the seeded people with codes as `qg.admin invite --all` would print them
@@ -69,6 +70,10 @@ def create_test_app(*, data_dir: Path, keys_dir: Path, clock: Clock | Callable[[
 
     core = Core(Settings(data_dir=Path(data_dir), keys_dir=Path(keys_dir), demo=demo), clock=_clock(clock),
                 log_sink=sink)
+    if public_rate is not None:
+        # In-process clients share one address and test clocks do not advance by themselves, so the
+        # per-address handshake limit is widened here (pass public_rate=None to keep production values).
+        core.public_rate = public_rate
     app = create_app(core)
     app.state.captured_logs = logs
     app.state.bootstrap_invites = core.issue_bootstrap_invites()  # what `python -m qg.admin invite --all` prints
@@ -158,14 +163,6 @@ class TestEnv:
         self.core.db.close()
 
 
-def main(argv: list[str]) -> int:  # pragma: no cover - `python -m qg.testing fuzz`
-    if argv[:1] == ["fuzz"]:
-        from qg.fuzz import run
-
-        return run()
-    print("usage: python -m qg.testing fuzz", file=sys.stderr)
-    return 2
+from qg.testing_cases import security_case  # noqa: E402 - imports create_test_app from this module
 
 
-if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main(sys.argv[1:]))

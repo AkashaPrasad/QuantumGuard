@@ -36,12 +36,12 @@ from qg.session.store import Pending
 router = APIRouter()
 
 B64 = Annotated[str, Field(min_length=1, max_length=8192, pattern=r"^[A-Za-z0-9_-]+$")]
-PUBLIC_RATE = (0.5, 20.0)  # per address: 30 per minute, burst 20
 
 
 def _public_rate(request: Request, bucket: str) -> None:
     core = core_of(request)
-    wait = core.buckets.take(f"{bucket}:{client_ip(request)}", PUBLIC_RATE[0], PUBLIC_RATE[1], core.clock.monotonic())
+    rate, burst = core.public_rate
+    wait = core.buckets.take(f"{bucket}:{client_ip(request)}", rate, burst, core.clock.monotonic())
     if wait > 0:
         raise QGError("QG_RATE_LIMITED", "rate_limited", retry_after=int(wait) + 1)
 

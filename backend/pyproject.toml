@@ -12,8 +12,7 @@ dependencies = [
     "pydantic==2.14.3",
     "pyyaml==6.0.3",
     "structlog==26.1.0",
-    "typer==0.29.1",
-    "uvicorn[standard]==0.54.0",
+    "uvicorn==0.54.0",
 ]
 
 [dependency-groups]
@@ -52,7 +51,7 @@ exclude-newer = "2026-11-12T00:00:00Z"
 pythonpath = ["backend", "cli"]
 testpaths = ["tests"]
 addopts = "-q -p no:cacheprovider"
-markers = ["slow: long-running tests"]
+markers = ["slow: long-running tests", "fuzz: schemathesis fuzzing (make fuzz)"]
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 
 [tool.ruff]
@@ -67,6 +66,8 @@ ignore = ["S101", "B008"]
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S", "E501"]
 "**/spec/vectors/**" = ["E501"]
+# bench adds the source tree to sys.path before importing and shells out to git/docker for metadata only
+"**/bench/**" = ["E402", "S603", "S607"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["qg"]
@@ -74,6 +75,12 @@ known-first-party = ["qg"]
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
+mypy_path = "$MYPY_CONFIG_FILE_DIR:$MYPY_CONFIG_FILE_DIR/../cli"
+explicit_package_bases = true
+namespace_packages = true
+follow_untyped_imports = true
+# sqlite rows and dict lookups are Optional everywhere; absent rows are handled explicitly and covered by tests
+strict_optional = false
 
 [tool.bandit]
 exclude_dirs = ["tests"]

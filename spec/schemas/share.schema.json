@@ -1,0 +1,48 @@
+{
+  "$id": "share.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "examples": [
+    {
+      "directory_epoch": 5,
+      "file_id": "fil_AAAAAAAAAAAAAAAAAAAAAA",
+      "recipients": [
+        "dev_AAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "suite": "QG-1",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "directory_epoch": {
+      "type": "integer"
+    },
+    "file_id": {
+      "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+      "type": "string"
+    },
+    "recipients": {
+      "items": {
+        "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "suite": {
+      "const": "QG-1"
+    },
+    "version": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "directory_epoch",
+    "file_id",
+    "recipients",
+    "suite",
+    "version"
+  ],
+  "title": "share",
+  "type": "object"
+}

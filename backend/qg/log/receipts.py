@@ -124,12 +124,13 @@ class EvidenceLog:
         matched_rules: list[str],
         key_epoch: int,
         directory_epoch: int,
+        receipt_id: str | None = None,
     ) -> dict[str, Any]:
         """Append a receipt inside the caller's transaction. Visible in the tree after commit."""
         leaf_index = len(self.tree.leaves) + len(self._pending)
-        receipt = {
+        receipt: dict[str, Any] = {
             "suite": SUITE,
-            "id": new_id("rcp"),
+            "id": receipt_id or new_id("rcp"),
             "ts": self.clock.iso(),
             "request_hash": request_hash,
             "subject": {
@@ -221,6 +222,26 @@ class EvidenceLog:
         """Called periodically: checkpoint when receipts are waiting and the interval passed."""
         with self.db.tx() as conn:
             return self.checkpoint(conn)
+
+    # ---- self-audit (feeds QG-R013) ---------------------------------------------------------
+
+    def audit(self) -> dict[str, Any] | None:
+        """Recompute every stored leaf hash and the newest checkpoint root. Returns the first mismatch."""
+        with self.db.tx() as conn:
+            rows = conn.execute("SELECT leaf_index, leaf, leaf_hash FROM receipts ORDER BY leaf_index").fetchall()
+            cp_row = conn.execute("SELECT tree_size, root_hash FROM checkpoints ORDER BY tree_size DESC LIMIT 1").fetchone()
+        for i, row in enumerate(rows):
+            stored = bytes(row["leaf_hash"])
+            if row["leaf_index"] != i:
+                return {"first_bad_index": i, "check": "leaf_index_gap"}
+            if merkle.leaf_hash(bytes(row["leaf"])) != stored:
+                return {"first_bad_index": i, "check": "leaf_hash"}
+            if i < len(self.tree.leaves) and self.tree.leaves[i] != stored:
+                return {"first_bad_index": i, "check": "tree"}
+        if cp_row is not None and cp_row[0] <= len(self.tree.leaves):
+            if self.tree.root(cp_row[0]) != bytes(cp_row[1]):
+                return {"first_bad_index": None, "check": "checkpoint_root"}
+        return None
 
     # ---- proofs ------------------------------------------------------------------------------
 

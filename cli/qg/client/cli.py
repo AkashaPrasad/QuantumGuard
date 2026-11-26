@@ -442,8 +442,12 @@ def cmd_demo_seed(args: argparse.Namespace) -> int:
         name = inv["name"]
         slug = "".join(ch if ch.isalnum() else "-" for ch in name.lower())
         client = QGClient(args.server)
-        dev = _retry_rate(
-            lambda c=client, code=inv["code"], dn=f"{name.split()[0]} demo laptop": c.enroll(code, dn))
+        code, dn = inv["code"], f"{name.split()[0]} demo laptop"
+
+        def enrol(c: QGClient = client, code: str = code, dn: str = dn) -> Any:
+            return c.enroll(code, dn)
+
+        dev = _retry_rate(enrol)
         dev.state.save(str(out_dir / f"{slug}.qgkeystore"), pw)
         devices[name] = dev
         people.append({"name": name, "user_id": dev.state.user_id, "device_id": dev.state.device_id})

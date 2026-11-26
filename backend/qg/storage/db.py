@@ -27,6 +27,7 @@ class Database:
         self._depth = 0
         self._on_commit: list = []
         self._on_rollback: list = []
+        self._after: list = []
         with self._lock:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA synchronous=FULL")
@@ -55,6 +56,7 @@ class Database:
                 self._depth = 0
                 self._conn.execute("ROLLBACK")
                 self._finish(self._on_rollback)
+                self._run_after()
                 raise
             else:
                 self._depth = 0
@@ -65,6 +67,25 @@ class Database:
                     self._finish(self._on_rollback)
                     raise StorageUnavailable("commit failed") from exc
                 self._finish(self._on_commit)
+                self._run_after()
+
+    def _run_after(self) -> None:
+        run = list(self._after)
+        self._after.clear()
+        for fn in run:
+            fn()  # each opens its own transaction (depth is 0 again)
+
+    @property
+    def in_tx(self) -> bool:
+        return self._depth > 0
+
+    def after_tx(self, fn: Any) -> None:
+        """Run fn after the outermost transaction ends, whether it commits or rolls back. Used for evidence
+        that must survive a failing request (deny receipts, detection events)."""
+        if self._depth:
+            self._after.append(fn)
+        else:
+            fn()
 
     def _finish(self, hooks: list) -> None:
         run = list(hooks)

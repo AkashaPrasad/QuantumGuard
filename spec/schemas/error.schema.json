@@ -1,0 +1,55 @@
+{
+  "$id": "error.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "examples": [
+    {
+      "error": {
+        "code": "QG_DENY_POLICY",
+        "message": "Policy does not allow this action.",
+        "reason": "self_approval",
+        "receipt_id": "rcp_AAAAAAAAAAAAAAAAAAAAAA",
+        "request_id": "req_AAAAAAAAAAAAAAAAAAAAAA"
+      }
+    }
+  ],
+  "properties": {
+    "error": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "pattern": "^QG_[A-Z_]+$",
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "receipt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "reason",
+        "receipt_id",
+        "request_id"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "error"
+  ],
+  "title": "error",
+  "type": "object"
+}

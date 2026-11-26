@@ -1,0 +1,127 @@
+{
+  "$id": "slot.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "examples": [
+    {
+      "device_id": "dev_AAAAAAAAAAAAAAAAAAAAAA",
+      "file_id": "fil_AAAAAAAAAAAAAAAAAAAAAA",
+      "inner_wrap": {
+        "wrapped_dek": "d3JhcHBlZA",
+        "xwing_ct": "eHdpbmctY3Q"
+      },
+      "lease": {
+        "expires_at": "2026-11-26T12:00:00.000Z",
+        "lease_id": "lse_AAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "manifest": {
+        "chunk_count": 1,
+        "ciphertext_sha256": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+        "classification": "restricted",
+        "directory_epoch": 4,
+        "file_id": "fil_AAAAAAAAAAAAAAAAAAAAAA",
+        "recipients": [
+          "dev_AAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "suite": "QG-1",
+        "version": 1
+      },
+      "manifest_sig": "c2ln",
+      "receipt_id": "rcp_AAAAAAAAAAAAAAAAAAAAAA",
+      "signer_device_id": "dev_AAAAAAAAAAAAAAAAAAAAAA",
+      "slot_id": "slt_AAAAAAAAAAAAAAAAAAAAAA",
+      "version": 1,
+      "wrap_epoch": 4
+    }
+  ],
+  "properties": {
+    "device_id": {
+      "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+      "type": "string"
+    },
+    "file_id": {
+      "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+      "type": "string"
+    },
+    "inner_wrap": {
+      "additionalProperties": false,
+      "properties": {
+        "wrapped_dek": {
+          "description": "base64url without padding",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "xwing_ct": {
+          "description": "base64url without padding",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "wrapped_dek",
+        "xwing_ct"
+      ],
+      "type": "object"
+    },
+    "lease": {
+      "additionalProperties": false,
+      "properties": {
+        "expires_at": {
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "lease_id": {
+          "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expires_at",
+        "lease_id"
+      ],
+      "type": "object"
+    },
+    "manifest": {
+      "$ref": "manifest.schema.json"
+    },
+    "manifest_sig": {
+      "description": "base64url without padding",
+      "pattern": "^[A-Za-z0-9_-]*$",
+      "type": "string"
+    },
+    "receipt_id": {
+      "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+      "type": "string"
+    },
+    "signer_device_id": {
+      "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+      "type": "string"
+    },
+    "slot_id": {
+      "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+      "type": "string"
+    },
+    "version": {
+      "type": "integer"
+    },
+    "wrap_epoch": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "device_id",
+    "file_id",
+    "inner_wrap",
+    "lease",
+    "manifest",
+    "manifest_sig",
+    "receipt_id",
+    "signer_device_id",
+    "slot_id",
+    "version",
+    "wrap_epoch"
+  ],
+  "title": "slot",
+  "type": "object"
+}

@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from qg.crypto import aead, kdf
+from qg.crypto import aead, kdf, xwing
 from qg.crypto.encoding import b64u, b64u_decode, canon
 from qg.crypto.sign import mldsa_verify, verify_dual
 from qg.crypto.suite import RECOVERY_DEVICE_ID, SUITE
@@ -311,6 +311,67 @@ class Device:
         for item in self.rekey_pending()["rekeys"]:
             done.append(self.rekey_one(item))
         return done
+
+    # ---- changes -------------------------------------------------------------------------------
+
+    def request_change(self, ctype: str, target_user_id: str, *, role: str | None = None, file_id: str | None = None,
+                       reason: str = "requested") -> dict[str, Any]:
+        statement = {"directory_epoch": self.refresh_directory()["epoch"], "file_id": file_id, "reason": reason,
+                     "role": role, "suite": SUITE, "target_user_id": target_user_id, "type": ctype}
+        return self.post("/api/v1/changes", {"change": statement,
+                                             "signature": b64u(self.state.keys.sig.sign(canon(statement), "change"))})
+
+    def approve_change(self, change: dict[str, Any]) -> dict[str, Any]:
+        """Check the requester's signature over `change`, recompute change_hash, sign the approval statement."""
+        import hashlib
+
+        if change.get("signature"):
+            requester = self.signer_key(change["requested_by"]["device_id"], change["change"]["directory_epoch"])
+            if requester is None or not mldsa_verify(requester, b64u_decode(change["signature"]),
+                                                     canon(change["change"]), "change"):
+                raise ClientRefused("change signature")
+        change_hash = b64u(hashlib.sha256(canon(change["change"])).digest())
+        if change_hash != change["change_hash"]:
+            raise ClientRefused("change hash")
+        approval = {"change_hash": change_hash, "change_id": change["id"], "decision": "approve",
+                    "purpose": "approve", "suite": SUITE}
+        return self.post(f"/api/v1/changes/{change['id']}/approve",
+                         {"signature": b64u(self.state.keys.sig.sign(canon(approval), "change"))})
+
+    # ---- messages (spec/SUITE.md section 11) ----------------------------------------------------
+
+    def send_message(self, to_user_id: str, plaintext: bytes, device_ids: list[str] | None = None) -> dict[str, Any]:
+        directory = self.refresh_directory()
+        targets = device_ids or [d["device_id"] for d in directory["devices"] if d["user_id"] == to_user_id]
+        envelopes = []
+        for did in sorted(targets):
+            entry = self.device_entry(did)
+            if entry is None:
+                raise ClientRefused(f"device {did} not in directory")
+            ss, ct = xwing.encapsulate(b64u_decode(entry["kem_pk"]))
+            n = os.urandom(12)
+            aad = canon({"device_id": did, "suite": SUITE, "to_user_id": to_user_id})
+            envelopes.append({"ciphertext": b64u(n + aead.gcm_encrypt(kdf.message_key(ss), n, plaintext, aad)),
+                              "device_id": did, "xwing_ct": b64u(ct)})
+        statement = canon({"envelopes": envelopes, "suite": SUITE, "to_user_id": to_user_id})
+        return self.post("/api/v1/messages", {"to_user_id": to_user_id, "envelopes": envelopes,
+                                              "signature": b64u(self.state.keys.sig.sign(statement, "message"))})
+
+    def read_messages(self) -> list[dict[str, Any]]:
+        """Decrypt the envelopes addressed to this device. The sender's signature covers every envelope, so it is
+        checked when the server returns them all; here each envelope is authenticated by AES-GCM and its AAD."""
+        out = []
+        for m in self.get("/api/v1/messages")["items"]:
+            env = m["envelope"]
+            ss = self.state.keys.kem.decapsulate(b64u_decode(env["xwing_ct"]))
+            raw = b64u_decode(env["ciphertext"])
+            aad = canon({"device_id": self.device_id, "suite": SUITE, "to_user_id": self.user_id})
+            try:
+                pt = aead.gcm_decrypt(kdf.message_key(ss), raw[:12], raw[12:], aad)
+            except aead.AeadError as exc:
+                raise ClientRefused("message authentication") from exc
+            out.append({"message_id": m["message_id"], "from": m["from"], "plaintext": pt})
+        return out
 
     def catch_up_shares(self) -> int:
         n = 0

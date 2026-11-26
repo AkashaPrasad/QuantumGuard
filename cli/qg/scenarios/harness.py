@@ -28,19 +28,30 @@ def free_port() -> int:
 
 
 class Server:
-    def __init__(self, workdir: Path | None = None, port: int | None = None) -> None:
+    """A throwaway server process, or (with `url`) an already running server whose data directory is reachable
+    by `python -m qg.admin` in this environment (inside the container: `make demo`)."""
+
+    def __init__(self, workdir: Path | None = None, port: int | None = None, url: str | None = None) -> None:
+        self.external = url is not None
         self.tmp = tempfile.TemporaryDirectory(prefix="qg-scenario-")
         self.workdir = workdir or Path(self.tmp.name)
         self.port = port or free_port()
-        self.url = f"http://127.0.0.1:{self.port}"
+        self.url = url.rstrip("/") if url else f"http://127.0.0.1:{self.port}"
         self.proc: subprocess.Popen[str] | None = None
         self.lines: list[str] = []
         self.bootstrap: list[dict[str, Any]] = []
         self._reader: threading.Thread | None = None
 
+    @classmethod
+    def from_env(cls) -> Server:
+        """External server when QG_URL is set (live demo), otherwise a throwaway one."""
+        return cls(url=os.environ.get("QG_URL") or None)
+
     @property
     def env(self) -> dict[str, str]:
         env = dict(os.environ)
+        if self.external:
+            return env
         env.update({
             "QG_DATA_DIR": str(self.workdir / "data"),
             "QG_KEYS_DIR": str(self.workdir / "keys"),
@@ -53,6 +64,10 @@ class Server:
         return env
 
     def start(self, timeout: float = 30) -> Server:
+        if self.external:
+            if httpx.get(self.url + "/healthz", timeout=5).status_code != 200:
+                raise RuntimeError("server not healthy")
+            return self
         self.proc = subprocess.Popen(  # noqa: S603 - fixed argv
             [sys.executable, "-m", "qg.server"], env=self.env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1,
@@ -99,6 +114,8 @@ class Server:
         raise KeyError(name)
 
     def kill(self) -> None:
+        if self.external:
+            raise RuntimeError("cannot kill an external server")
         if self.proc and self.proc.poll() is None:
             self.proc.send_signal(signal.SIGKILL)
             self.proc.wait(10)
@@ -124,6 +141,9 @@ class Server:
         return out
 
     def close(self) -> None:
+        if self.external:
+            self.tmp.cleanup()
+            return
         self.stop()
         self.tmp.cleanup()
 

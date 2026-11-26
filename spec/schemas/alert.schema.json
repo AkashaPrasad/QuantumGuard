@@ -1,0 +1,227 @@
+{
+  "$id": "alert.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "examples": [
+    {
+      "acknowledged_by": null,
+      "explanation": {
+        "condition": "A request or session attempt came from a device that is revoked.",
+        "receipt_ids": [
+          "rcp_AAAAAAAAAAAAAAAAAAAAAA"
+        ]
+      },
+      "id": "alr_AAAAAAAAAAAAAAAAAAAAAA",
+      "incident_id": "inc_AAAAAAAAAAAAAAAAAAAAAA",
+      "response": {
+        "action": "deny",
+        "expires_at": null,
+        "id": "rsp_AAAAAAAAAAAAAAAAAAAAAA",
+        "lifted_at": null,
+        "lifted_by": null,
+        "scope": {
+          "id": "dev_AAAAAAAAAAAAAAAAAAAAAA",
+          "kind": "device"
+        }
+      },
+      "rule_id": "QG-R001",
+      "severity": "critical",
+      "status": "open",
+      "subject": {
+        "device_id": "dev_AAAAAAAAAAAAAAAAAAAAAA",
+        "session_id": "ses_AAAAAAAAAAAAAAAAAAAAAA",
+        "user_id": "usr_AAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "summary": "A revoked device tried to use QuantumGuard and was denied.",
+      "ts": "2026-11-26T12:00:00.000Z"
+    }
+  ],
+  "properties": {
+    "acknowledged_by": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "explanation": {
+      "additionalProperties": false,
+      "properties": {
+        "condition": {
+          "type": "string"
+        },
+        "receipt_ids": {
+          "items": {
+            "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "condition",
+        "receipt_ids"
+      ],
+      "type": "object"
+    },
+    "id": {
+      "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+      "type": "string"
+    },
+    "incident_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "response": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "enum": [
+                "deny",
+                "end_session",
+                "quarantine_device",
+                "quarantine_identity",
+                "throttle",
+                "require_fresh_session",
+                "hold_enrolment",
+                "freeze_key_release",
+                "none"
+              ]
+            },
+            "expires_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+              "type": "string"
+            },
+            "lifted_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lifted_by": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scope": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "enum": [
+                    "session",
+                    "device",
+                    "identity",
+                    "credential",
+                    "global"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "kind"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "action",
+            "expires_at",
+            "id",
+            "lifted_at",
+            "lifted_by",
+            "scope"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "rule_id": {
+      "pattern": "^QG-R0[0-1][0-9]$",
+      "type": "string"
+    },
+    "severity": {
+      "enum": [
+        "critical",
+        "high",
+        "medium"
+      ]
+    },
+    "status": {
+      "enum": [
+        "open",
+        "acknowledged"
+      ]
+    },
+    "subject": {
+      "additionalProperties": false,
+      "properties": {
+        "device_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "user_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "device_id",
+        "session_id",
+        "user_id"
+      ],
+      "type": "object"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "ts": {
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}Z$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "acknowledged_by",
+    "explanation",
+    "id",
+    "incident_id",
+    "response",
+    "rule_id",
+    "severity",
+    "status",
+    "subject",
+    "summary",
+    "ts"
+  ],
+  "title": "alert",
+  "type": "object"
+}

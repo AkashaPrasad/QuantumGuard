@@ -1,0 +1,154 @@
+{
+  "$id": "directory.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "examples": [
+    {
+      "devices": [],
+      "epoch": 1,
+      "issued_at": "2026-11-26T12:00:00.000Z",
+      "prev_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "recovery_pk": "cmVjb3Zlcnk",
+      "revoked": [],
+      "signatures": {
+        "ed25519": "c2lnbmF0dXJlLWV4YW1wbGU",
+        "mldsa": "bWxkc2Etc2lnbmF0dXJlLWV4YW1wbGU"
+      },
+      "suite": "QG-1",
+      "users": [
+        {
+          "name": "Aiko Tanaka",
+          "roles": [
+            "employee"
+          ],
+          "status": "active",
+          "user_id": "usr_AAAAAAAAAAAAAAAAAAAAAA"
+        }
+      ]
+    }
+  ],
+  "properties": {
+    "devices": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "epoch": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "issued_at": {
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}Z$",
+      "type": "string"
+    },
+    "prev_hash": {
+      "description": "base64url without padding",
+      "pattern": "^[A-Za-z0-9_-]*$",
+      "type": "string"
+    },
+    "recovery_pk": {
+      "description": "base64url without padding",
+      "pattern": "^[A-Za-z0-9_-]*$",
+      "type": "string"
+    },
+    "revoked": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "device_id": {
+            "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+            "type": "string"
+          },
+          "epoch": {
+            "type": "integer"
+          },
+          "revoked_at": {
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}Z$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "epoch",
+          "revoked_at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "signatures": {
+      "additionalProperties": false,
+      "properties": {
+        "ed25519": {
+          "description": "base64url without padding",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "mldsa": {
+          "description": "base64url without padding",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ed25519",
+        "mldsa"
+      ],
+      "type": "object"
+    },
+    "suite": {
+      "const": "QG-1"
+    },
+    "users": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "quarantined",
+              "disabled"
+            ]
+          },
+          "user_id": {
+            "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "roles",
+          "status",
+          "user_id"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "devices",
+    "epoch",
+    "issued_at",
+    "prev_hash",
+    "recovery_pk",
+    "revoked",
+    "signatures",
+    "suite",
+    "users"
+  ],
+  "title": "directory",
+  "type": "object"
+}

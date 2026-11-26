@@ -37,6 +37,7 @@ def incident_leaf_indices(conn, inc) -> list[int]:  # noqa: ANN001
 
 
 def build_bundle(core: Core, incident_id: str) -> dict[str, Any]:
+    core.self_audit()  # a tampered store raises QG-R013 before anything is exported
     with core.db.tx() as conn:
         inc = conn.execute("SELECT * FROM incidents WHERE id = ?", (incident_id,)).fetchone()
         cp = core.log.checkpoint(conn, force=True)

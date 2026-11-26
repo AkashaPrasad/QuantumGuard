@@ -30,6 +30,9 @@ from qg.session.store import SecretStore
 from qg.storage.blobs import BlobStore
 from qg.storage.db import Database, get_meta, set_meta
 
+AUDIT_SECONDS = 15.0
+PUBLIC_RATE = (0.5, 20.0)  # per client address on public handshake routes: 30 per minute, burst 20
+
 
 class TokenBuckets:
     def __init__(self) -> None:
@@ -84,6 +87,7 @@ class Core:
         self.log = EvidenceLog(self.db, self.keys.signer, self.clock)
         self.secrets = SecretStore()
         self.buckets = TokenBuckets()
+        self.public_rate = PUBLIC_RATE
         self.policy = self._load_policy()
         self.detector = Detector(self)
         self.started_mono = time.monotonic()
@@ -205,15 +209,32 @@ class Core:
             return
 
         def run() -> None:
+            last_audit = 0.0
             while not self._stop.wait(0.25):
                 try:
                     self.log.tick()
                     self.expire_leases()
+                    if time.monotonic() - last_audit >= AUDIT_SECONDS:
+                        last_audit = time.monotonic()
+                        self.self_audit()
                 except Exception as exc:  # noqa: BLE001 - background loop must survive
                     self.log_event("background_error", error=type(exc).__name__)
 
         self._ticker = threading.Thread(target=run, name="qg-checkpoints", daemon=True)
         self._ticker.start()
+
+    def self_audit(self) -> dict[str, Any] | None:
+        """Check the stored log against its hashes and checkpoint; on mismatch raise QG-R013 once."""
+        problem = self.log.audit()
+        if problem is None:
+            return None
+        with self.db.tx() as conn:
+            frozen = conn.execute("SELECT 1 FROM responses WHERE action = 'freeze_key_release' AND lifted_at IS NULL"
+                                  " LIMIT 1").fetchone()
+            if not frozen:
+                self.emit(conn, "checkpoint_mismatch", {"user_id": None, "device_id": None, "session_id": None}, [],
+                          **problem)
+        return problem
 
     def stop(self) -> None:
         self._stop.set()
@@ -247,7 +268,7 @@ class Core:
 
     def receipt(self, conn: sqlite3.Connection, *, action: str, decision: str, reason: str,
                 subject: dict[str, str | None], request_hash: str, resource: str | None = None,
-                matched: list[str] | None = None, key_epoch: int = 0) -> dict[str, Any]:
+                matched: list[str] | None = None, key_epoch: int = 0, receipt_id: str | None = None) -> dict[str, Any]:
         return self.log.append(
             conn,
             action=action,
@@ -260,16 +281,34 @@ class Core:
             matched_rules=matched or [],
             key_epoch=key_epoch,
             directory_epoch=self.directory.current_epoch(conn),
+            receipt_id=receipt_id,
         )
 
     def deny_receipt(self, ctx: Any, action: str, reason: str, resource: str | None,
                      matched: list[str] | None = None, key_epoch: int = 0) -> str:
-        """Write a deny receipt in its own transaction so it survives the failing request."""
+        """Write a deny receipt that survives the failing request: inside a request transaction the id is
+        reserved now and the receipt is appended in its own transaction once the request's one ends."""
+        rid = new_id("rcp")
+        subject, request_hash = dict(ctx.subject), ctx.request_hash
+
+        def write() -> None:
+            with self.db.tx() as conn:
+                self.receipt(conn, action=action, decision="deny", reason=reason, subject=subject,
+                             request_hash=request_hash, resource=resource, matched=matched, key_epoch=key_epoch,
+                             receipt_id=rid)
+
+        self.db.after_tx(write)
+        ctx.set_receipt(rid)
+        return rid
+
+    def record_denied_attempt_now(self, device_id: str, receipt_id: str | None) -> None:
         with self.db.tx() as conn:
-            rc = self.receipt(conn, action=action, decision="deny", reason=reason, subject=ctx.subject,
-                              request_hash=ctx.request_hash, resource=resource, matched=matched, key_epoch=key_epoch)
-        ctx.set_receipt(rc["id"])
-        return rc["id"]
+            dev = conn.execute("SELECT status, user_id FROM devices WHERE device_id = ?", (device_id,)).fetchone()
+            if dev is None or dev["status"] != "revoked":
+                return
+            self.record_denied_attempt(conn, device_id, receipt_id)
+            self.emit(conn, "revoked_device_attempt", {"user_id": dev["user_id"], "device_id": device_id,
+                                                       "session_id": None}, [receipt_id] if receipt_id else [])
 
     def record_denied_attempt(self, conn: sqlite3.Connection, device_id: str, receipt_id: str | None) -> None:
         inc = conn.execute("SELECT id FROM incidents WHERE device_id = ?", (device_id,)).fetchone()
@@ -306,7 +345,13 @@ class Core:
 
     def emit_now(self, event_kind: str, subject: dict[str, str | None], receipt_ids: list[str] | None = None,
                  **data: Any) -> list[dict[str, Any]]:
-        return self.detector.emit_now(Event(event_kind, dict(subject), list(receipt_ids or []), data))
+        """Emit in its own transaction; if called inside one, after it ends (so a failing request cannot roll the
+        detection back). Returns the alerts only when it ran immediately."""
+        event = Event(event_kind, dict(subject), list(receipt_ids or []), data)
+        if self.db.in_tx:
+            self.db.after_tx(lambda: self.detector.emit_now(event))
+            return []
+        return self.detector.emit_now(event)
 
     def end_sessions(self, conn: sqlite3.Connection, *, where: str, params: tuple[Any, ...], reason: str) -> int:
         # `where` is always one of a few fixed clauses written in this file; values are bound parameters

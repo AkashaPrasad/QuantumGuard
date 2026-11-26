@@ -159,6 +159,10 @@ def authenticate(core: Core, request: Request, body: bytes, receipt_action: str 
         k_mac = core.secrets.mac(sid)
         if row is None or k_mac is None:
             ended = conn.execute("SELECT * FROM ended_sessions WHERE session_id = ?", (sid,)).fetchone()
+            if ended is not None and ended["reason"] == "auto_response":
+                qdev = conn.execute("SELECT status FROM devices WHERE device_id = ?", (ended["device_id"],)).fetchone()
+                if qdev is not None and qdev["status"] == "quarantined":
+                    raise QGError("QG_QUARANTINED", "device_quarantined")
             if ended is not None and ended["reason"] in ("revoked", "report_lost"):
                 dev = conn.execute("SELECT status FROM devices WHERE device_id = ?", (ended["device_id"],)).fetchone()
                 if dev is not None and dev["status"] == "revoked":
@@ -308,10 +312,11 @@ def live(core: Core, conn: sqlite3.Connection, ctx: Ctx) -> None:
         "SELECT d.status FROM sessions s JOIN devices d ON d.device_id = s.device_id WHERE s.session_id = ?",
         (ctx.session_id,),
     ).fetchone()
-    if row is None:
-        raise QGError("QG_DENY_REVOKED", "device_revoked")
-    if row[0] == "revoked":
-        raise QGError("QG_DENY_REVOKED", "device_revoked")
+    if row is None or row[0] == "revoked":
+        action = getattr(ctx.state, "qg_receipt_action", None) or "access"
+        rid = core.deny_receipt(ctx, action, "device_revoked", ctx.path.split("?", 1)[0][:200])
+        core.db.after_tx(lambda: core.record_denied_attempt_now(ctx.device_id, rid))
+        raise QGError("QG_DENY_REVOKED", "device_revoked", receipt_id=rid)
     if row[0] == "quarantined":
         raise QGError("QG_QUARANTINED", "device_quarantined")
 

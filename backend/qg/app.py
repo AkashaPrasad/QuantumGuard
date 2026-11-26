@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-from pathlib import Path
+import time
+from collections.abc import MutableMapping
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from qg.core import Core
@@ -30,6 +33,7 @@ SECURITY_HEADERS = [
     (b"cross-origin-resource-policy", b"same-origin"),
 ]
 MAX_JSON_BODY = 256 * 1024
+BODY_READ_TIMEOUT = 30.0  # seconds to wait for each piece of a request body
 MAX_CHUNK_BODY = 1_048_576 + 28 + 1024
 
 
@@ -82,7 +86,10 @@ class GuardMiddleware:
 
         async def receive_limited() -> dict:
             nonlocal seen, overflow
-            message = await receive()
+            try:
+                message = await asyncio.wait_for(receive(), timeout=BODY_READ_TIMEOUT)
+            except TimeoutError as exc:
+                raise QGError("QG_INVALID_INPUT", "body_timeout") from exc
             if message["type"] == "http.request":
                 seen += len(message.get("body", b""))
                 if seen > limit:
@@ -90,7 +97,20 @@ class GuardMiddleware:
                     return {"type": "http.request", "body": b"", "more_body": False}
             return message
 
-        await self.app(scope, receive_limited, send_wrapped)
+        started = time.monotonic()
+        try:
+            await self.app(scope, receive_limited, send_wrapped)
+        finally:
+            route = scope.get("route")
+            self.core.log_event(
+                "request",
+                request_id=request_id,
+                method=scope.get("method"),
+                route=getattr(route, "path", None) or ("static" if not path.startswith("/api/") else "unmatched"),
+                status=status_holder["status"],
+                duration_ms=round((time.monotonic() - started) * 1000, 3),
+                receipt_id=scope["state"].get("receipt_id"),
+            )
 
     async def _reject(self, scope: dict, send: Any, request_id: str) -> None:
         err = QGError("QG_INVALID_INPUT", "body_too_large")
@@ -154,37 +174,31 @@ def create_app(core: Core) -> FastAPI:
     from qg.api import routers
 
     for r in routers():
-        app.include_router(r)
+        # Routes are registered flat (each APIRoute already carries its router prefix) so the route table
+        # is a plain list of APIRoute objects for OpenAPI export and route-inventory checks.
+        app.router.routes.extend(r.routes)
 
     if core.settings.web_dist is not None:
-        _mount_static(app, core.settings.web_dist)
-    else:
-        @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
-        async def fallback(path: str) -> Response:
-            raise QGError("QG_NOT_FOUND", "not_found")
+        app.mount("/", SPAStaticFiles(directory=str(core.settings.web_dist)), name="site")
 
     app.add_middleware(GuardMiddleware, core=core)
     return app
 
 
-def _mount_static(app: FastAPI, dist: Path) -> None:
-    root = dist.resolve()
-    index = root / "index.html"
+class SPAStaticFiles(StaticFiles):
+    """The built site at /, with index.html for client-side routes. Never answers for /api/* or /healthz."""
 
-    @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
-    async def static(path: str) -> Response:
-        if path.startswith("api/") or path == "api" or path == "healthz":
-            raise QGError("QG_NOT_FOUND", "not_found")
-        target = (root / path).resolve()
-        if path and target.is_file() and target.is_relative_to(root):
-            return FileResponse(target)
-        if index.is_file():
-            return FileResponse(index, headers={"cache-control": "no-cache"})
-        raise QGError("QG_NOT_FOUND", "not_found")
-
-    @app.api_route("/{path:path}", methods=["POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
-    async def other(path: str) -> Response:
-        raise QGError("QG_NOT_FOUND", "not_found")
+    async def get_response(self, path: str, scope: MutableMapping[str, Any]) -> Response:
+        if path == "api" or path.startswith("api/") or path == "healthz":
+            raise StarletteHTTPException(status_code=404)
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404 or scope.get("method") not in ("GET", "HEAD"):
+                raise
+            response = await super().get_response("index.html", scope)
+            response.headers["cache-control"] = "no-cache"
+            return response
 
 
 _production_app: FastAPI | None = None

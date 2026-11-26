@@ -1,0 +1,125 @@
+{
+  "added_latency_ms": {
+    "median": 0.483,
+    "n": 200,
+    "p95": 1.306
+  },
+  "authenticated_ms": {
+    "median": 1.275,
+    "n": 200,
+    "p95": 2.972
+  },
+  "baseline_ms": {
+    "median": 0.792,
+    "n": 200,
+    "p95": 1.666
+  },
+  "checkpoint_signing_ms_per_1000_receipts": {
+    "batched": 0.422,
+    "per_receipt_equivalent": 429.752,
+    "receipts_per_checkpoint": 1000
+  },
+  "cold_start_s": 0.27,
+  "commit": "aa8504e",
+  "crypto_ms": {
+    "dual_sign_checkpoint": {
+      "median": 0.38,
+      "n": 200,
+      "p95": 1.047
+    },
+    "ed25519_sign": {
+      "median": 0.015,
+      "n": 200,
+      "p95": 0.015
+    },
+    "mldsa_sign": {
+      "median": 0.363,
+      "n": 200,
+      "p95": 1.416
+    },
+    "mldsa_verify": {
+      "median": 0.077,
+      "n": 200,
+      "p95": 0.08
+    },
+    "xwing_decaps": {
+      "median": 0.031,
+      "n": 200,
+      "p95": 0.032
+    },
+    "xwing_encaps": {
+      "median": 0.052,
+      "n": 200,
+      "p95": 0.069
+    },
+    "xwing_keygen": {
+      "median": 0.07,
+      "n": 200,
+      "p95": 0.091
+    }
+  },
+  "generated_at": "2026-11-26T13:39:49Z",
+  "idle_memory_mb": {
+    "reason": "image present, idle memory not sampled by this bench",
+    "value": null
+  },
+  "image_size_mb": {
+    "compressed_mib": 56.575,
+    "reason": null,
+    "unit": "MB (docker image ls, unpacked)",
+    "value": 272.0
+  },
+  "machine": {
+    "cpu_count": 12,
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "python": "3.12.13"
+  },
+  "met": {
+    "added_latency_p95_ms": true,
+    "cold_start_s": true,
+    "image_size_mb": false,
+    "policy_decision_p95_ms": true,
+    "slot_release_p95_ms": true,
+    "time_to_enforce_ms": true
+  },
+  "policy_decision_ms": {
+    "median": 0.003,
+    "n": 1000,
+    "p95": 0.004
+  },
+  "session_handshake_ms": {
+    "median": 3.352,
+    "n": 8,
+    "p95": 4.405
+  },
+  "slot_release_ms": {
+    "median": 1.636,
+    "n": 200,
+    "p95": 7.285
+  },
+  "suite": "QG-1",
+  "targets": {
+    "added_latency_p95_ms": 3,
+    "cold_start_s": 10,
+    "image_size_mb": 250,
+    "policy_decision_p95_ms": 5,
+    "slot_release_p95_ms": 20,
+    "time_to_enforce_ms": 100
+  },
+  "throughput_mb_s": {
+    "open": 312.298,
+    "protect": 117.213,
+    "size_mib": 16,
+    "size_overhead": {
+      "chunk_count": 16,
+      "per_chunk_bytes": 28,
+      "per_file_bytes": 448,
+      "per_request_header_bytes": 125
+    }
+  },
+  "time_to_enforce_ms": {
+    "median": 3.0,
+    "n": 5,
+    "p95": 6.0
+  }
+}

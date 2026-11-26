@@ -22,7 +22,7 @@ from qg.scenarios.harness import Server, result
 
 
 def _qg_verify(bundle: Path, keys: Path, env: dict[str, str]) -> tuple[int, dict]:
-    out = subprocess.run([sys.executable, "-m", "qg.client", "verify", str(bundle), "--keys", str(keys), "--json"],
+    out = subprocess.run([sys.executable, "-m", "qg.client", "verify", str(bundle), "--keys", str(keys), "--json"],  # noqa: S603
                          capture_output=True, text=True, timeout=60, env=env, check=False)
     return out.returncode, json.loads(out.stdout or "{}")
 

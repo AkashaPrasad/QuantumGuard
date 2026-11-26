@@ -1,0 +1,72 @@
+{
+  "$id": "manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "examples": [
+    {
+      "chunk_count": 1,
+      "ciphertext_sha256": "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU",
+      "classification": "restricted",
+      "directory_epoch": 4,
+      "file_id": "fil_AAAAAAAAAAAAAAAAAAAAAA",
+      "recipients": [
+        "dev_AAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "suite": "QG-1",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "chunk_count": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "ciphertext_sha256": {
+      "description": "base64url without padding",
+      "pattern": "^[A-Za-z0-9_-]*$",
+      "type": "string"
+    },
+    "classification": {
+      "enum": [
+        "internal",
+        "confidential",
+        "restricted"
+      ]
+    },
+    "directory_epoch": {
+      "type": "integer"
+    },
+    "file_id": {
+      "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+      "type": "string"
+    },
+    "recipients": {
+      "items": {
+        "pattern": "^[a-z]{3}_[A-Za-z0-9_-]{22}$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "type": "array"
+    },
+    "suite": {
+      "const": "QG-1"
+    },
+    "version": {
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "chunk_count",
+    "ciphertext_sha256",
+    "classification",
+    "directory_epoch",
+    "file_id",
+    "recipients",
+    "suite",
+    "version"
+  ],
+  "title": "manifest",
+  "type": "object"
+}

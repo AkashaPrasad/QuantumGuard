@@ -322,6 +322,11 @@ MTH({d0})     = leaf_hash(d0)
 MTH(D[0:n])   = node(MTH(D[0:k]), MTH(D[k:n]))   where k is the largest power of two < n
 ```
 
+Receipt fields fixed by QG-1: `key_epoch` is the file version (key generation) the decision concerned, or
+0 when the decision is not about a file. A refused request writes a `deny` receipt even though the request
+fails; the receipt id is returned in the error body and in `QG-Receipt`. A request from a revoked device on a
+route with no more specific action uses action `access`.
+
 Inclusion proofs and consistency proofs are those of RFC 6962 section 2.1.1 and 2.1.2; verify with
 RFC 9162 sections 2.1.3.2 and 2.1.4.2. All hashes are b64u in JSON.
 
@@ -400,6 +405,11 @@ For each recipient device: `(ss, xwing_ct) = XWing.Encapsulate(kem_pk)`; key per
 `{"epoch": int, "keys": [{"alg": "ML-DSA-65", "key_id", "public_key": b64u, "service_id",
 "status": "active"|"retiring"|"retired"}] sorted by key_id, "suite": "QG-1", "signatures"}`,
 dual-signed with purpose `keyset`. `epoch` increases on every rotation.
+
+A request may attribute itself to a service key with the header `QG-Service-Key: key_...`. A key in
+status `retiring` is accepted for 600 seconds after rotation, then becomes `retired`; a retired key answers
+`QG_DENY_POLICY` / `key_retired` (QG-R010); a decoy key raises QG-R004. Emergency rotation retires every
+earlier key at once.
 
 ## 13. Policy bundle
 
