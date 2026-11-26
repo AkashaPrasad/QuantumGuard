@@ -36,10 +36,6 @@ def verify_bundle(bundle: Any, pinned: dict[str, str] | None = None) -> dict[str
     if not verify_dual(cp, "checkpoint", ed, pq):
         return _fail("checkpoint", "checkpoint signatures do not both verify", checks)
     checks.append({"step": "checkpoint", "ok": True, "detail": f"tree_size {cp['tree_size']}"})
-    if not verify_dual(bundle, "report", ed, pq):
-        return _fail("report", "bundle signatures do not both verify", checks)
-    checks.append({"step": "report", "ok": True, "detail": "bundle signed by the server"})
-
     try:
         root = b64u_decode(cp["root_hash"], length=32)
         size = cp["tree_size"]
@@ -64,6 +60,10 @@ def verify_bundle(bundle: Any, pinned: dict[str, str] | None = None) -> dict[str
         if not merkle.verify_inclusion(idx, size, leaf_hash, path, root):
             return _fail("entries", f"inclusion proof for leaf {idx} does not reach the signed root", checks, idx)
     checks.append({"step": "entries", "ok": True, "detail": f"{len(bundle.get('entries') or [])} receipts included"})
+    # Entries first so a tampered receipt is reported by index; the bundle signature also covers them.
+    if not verify_dual(bundle, "report", ed, pq):
+        return _fail("report", "bundle signatures do not both verify", checks)
+    checks.append({"step": "report", "ok": True, "detail": "bundle signed by the server"})
 
     rev = bundle.get("revocation_checkpoint")
     if rev:

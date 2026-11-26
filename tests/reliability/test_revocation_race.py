@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 
-from qg.client import ApiError, QGClient
+from qg.client import QGClient
 from qg.clock import fmt
 from qg.scenarios.harness import Server
 

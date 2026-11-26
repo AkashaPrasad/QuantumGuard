@@ -23,7 +23,7 @@ from qg.clock import fmt, parse
 from qg.core import Core
 from qg.crypto import kdf
 from qg.crypto.encoding import EncodingError, b64u_decode, parse_strict
-from qg.crypto.suite import SESSION_HARD_CAP_SECONDS, SESSION_TTL_SECONDS
+from qg.crypto.suite import SESSION_TTL_SECONDS
 from qg.crypto.transcripts import mac_input, request_hash
 from qg.errors import QGError
 from qg.policy.engine import Decision, PolicyUnavailable
@@ -129,17 +129,14 @@ def body_openapi(model: type[BaseModel]) -> dict[str, Any]:
 
 def _deny_revoked_attempt(core: Core, request: Request, ended: sqlite3.Row, action: str | None, rh: str) -> QGError:
     """A request on a session that revocation ended: record the denied attempt (QG-R001)."""
-    receipt_id = None
     with core.db.tx() as conn:
         subject = {"user_id": ended["user_id"], "device_id": ended["device_id"], "session_id": ended["session_id"]}
-        if action:
-            rc = core.receipt(conn, action=action, decision="deny", reason="device_revoked", subject=subject,
-                              request_hash=rh, resource=request.url.path)
-            receipt_id = rc["id"]
+        rc = core.receipt(conn, action=action or "access", decision="deny", reason="device_revoked", subject=subject,
+                          request_hash=rh, resource=request.url.path[:200])
+        receipt_id = rc["id"]
         core.record_denied_attempt(conn, ended["device_id"], receipt_id)
-        core.emit(conn, "revoked_device_attempt", subject, [receipt_id] if receipt_id else [])
-    if receipt_id:
-        request.state.receipt_id = receipt_id
+        core.emit(conn, "revoked_device_attempt", subject, [receipt_id])
+    request.state.receipt_id = receipt_id
     return QGError("QG_DENY_REVOKED", "device_revoked", receipt_id=receipt_id)
 
 

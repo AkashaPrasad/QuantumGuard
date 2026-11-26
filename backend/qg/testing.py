@@ -148,7 +148,8 @@ class TestEnv:
 
     def decoy_file_id(self) -> str:
         row = self.core.db.one("SELECT file_id FROM files WHERE is_decoy = 1 LIMIT 1")
-        assert row is not None
+        if row is None:
+            raise LookupError("no decoy file")
         return row[0]
 
     def close(self) -> None:

@@ -222,8 +222,8 @@ class Core:
             self._ticker = None
         try:
             self.log.tick()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001 - shutdown must not fail on a final checkpoint
+            self.log_event("shutdown_checkpoint_failed", error=type(exc).__name__)
 
     def expire_leases(self) -> None:
         with self.db.tx() as conn:
@@ -309,7 +309,9 @@ class Core:
         return self.detector.emit_now(Event(event_kind, dict(subject), list(receipt_ids or []), data))
 
     def end_sessions(self, conn: sqlite3.Connection, *, where: str, params: tuple[Any, ...], reason: str) -> int:
-        rows = conn.execute(f"SELECT session_id, device_id, user_id FROM sessions WHERE {where}", params).fetchall()  # noqa: S608 - fixed clauses only
+        # `where` is always one of a few fixed clauses written in this file; values are bound parameters
+        sql = f"SELECT session_id, device_id, user_id FROM sessions WHERE {where}"  # noqa: S608 # nosec B608
+        rows = conn.execute(sql, params).fetchall()
         now = self.clock.iso()
         for r in rows:
             conn.execute(
@@ -346,7 +348,8 @@ class Core:
         elif r.action == "require_fresh_session" and r.scope_id:
             col = {"session": "session_id", "device": "device_id", "identity": "user_id"}.get(r.scope_kind)
             if col:
-                conn.execute(f"UPDATE sessions SET fresh_required = 1 WHERE {col} = ?", (r.scope_id,))  # noqa: S608
+                # col comes from the fixed mapping above
+                conn.execute(f"UPDATE sessions SET fresh_required = 1 WHERE {col} = ?", (r.scope_id,))  # noqa: S608 # nosec B608
         elif r.action == "freeze_key_release":
             conn.execute("UPDATE leases SET cancelled = 1")
         elif r.action == "hold_enrolment" and r.scope_id:

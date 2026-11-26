@@ -11,13 +11,14 @@ PNPM      ?= pnpm
 WEB       := $(PNPM) --dir $(ROOT)/web run
 QG_PORT   ?= 8080
 export QG_PORT
+# Only Docker is required: demo, scenarios and test run inside the compose stack. dev-* targets run on the host.
+COMPOSE   := bash $(ROOT)/scripts/compose.sh
+EXEC      := $(COMPOSE) exec -T quantumguard python
 
-.PHONY: help preflight setup dev dev-api dev-web build up down seed demo spec-lint spec-export \
-        test test-unit test-crypto test-api test-security test-detect test-reliability test-perf test-e2e \
-        test-a11y web-lint web-typecheck fuzz scan scan-secrets bench readme-test verify vectors lint \
-        scenario-normal scenario-revoke scenario-interrupt scenario-verify scenario-rotate \
-        scenario-privilege scenario-messaging scenarios \
-        requirements
+.PHONY: help preflight setup requirements dev dev-api dev-web build up down seed demo dev-demo spec-lint \
+        spec-export vectors test dev-test test-unit test-crypto test-api test-security test-detect \
+        test-reliability test-perf test-e2e test-a11y web-lint web-typecheck lint types fuzz scan scan-secrets \
+        bench readme-test verify scenarios dev-scenarios
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-20s %s\n", $$1, $$2}'
@@ -59,12 +60,15 @@ up: ## docker compose up
 down: ## docker compose down
 	docker compose -f $(ROOT)/docker-compose.yml down
 
-seed: ## Seed demo data through the public API (needs a running server)
-	$(PY) python -m qg.client demo seed
+seed: ## Enrol the seeded people in the running container through the public API
+	$(COMPOSE) exec -T -e QG_PASSPHRASE=$$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n') quantumguard \
+	  python -m qg.client demo seed --server http://127.0.0.1:8080 --dir /tmp/qg-demo
 
-demo: ## Seed and run the hero scenario against a running server
-	$(PY) python -m qg.client demo seed
-	$(MAKE) scenario-revoke
+demo: seed ## Seed the running container, then run the hero scenario inside it
+	$(EXEC) -m qg.scenarios revoke
+
+dev-demo: ## Host variant: hero scenario against a throwaway local server
+	$(PY) python -m qg.scenarios revoke
 
 ## ---- spec ------------------------------------------------------------------------------------
 
@@ -81,11 +85,11 @@ vectors: ## Regenerate QuantumGuard's own vectors (official ones: spec/vectors/i
 
 test-unit: ## Python unit tests (and web unit tests when present)
 	$(PYTEST) tests/unit
-	@if [ -f $(ROOT)/web/package.json ]; then $(WEB) test; fi
+	@if [ -d $(ROOT)/web/node_modules ]; then $(WEB) test; fi
 
 test-crypto: ## Known-answer and property tests in both languages
 	$(PYTEST) tests/crypto
-	@if [ -f $(ROOT)/web/package.json ]; then $(WEB) test:crypto; fi
+	@if [ -d $(ROOT)/web/node_modules ]; then $(WEB) test:crypto; fi
 
 test-api: ## Endpoint tests against the contract
 	$(PYTEST) -n auto tests/api
@@ -114,39 +118,39 @@ web-lint:
 web-typecheck:
 	$(WEB) typecheck
 
-lint: ## ruff, mypy and bandit on Python code
-	$(PY) ruff check backend/qg cli/qg
-	$(PY) bandit -q -r backend/qg cli/qg -x tests
+lint: ## ruff and bandit on Python code, and the web linter when the web app is installed
+	$(PY) ruff check --config $(ROOT)/backend/pyproject.toml backend/qg cli/qg scenarios spec/vectors $(wildcard bench/*.py) $(wildcard tests/unit tests/crypto tests/api tests/detect tests/reliability tests/perf)
+	$(PY) bandit -q -r backend/qg cli/qg -c $(ROOT)/backend/pyproject.toml
+	@if [ -d $(ROOT)/web/node_modules ]; then $(WEB) lint; fi
 
-test: test-unit test-crypto test-api test-detect test-reliability test-security ## Full automated suite
+types: ## mypy on the Python packages, and the web type check when installed
+	$(PY) mypy backend/qg cli/qg
+	@if [ -d $(ROOT)/web/node_modules ]; then $(WEB) typecheck; fi
+
+test: ## Full suite inside the test image (Docker only)
+	$(COMPOSE) --profile test run --rm tests
+
+dev-test: test-unit test-crypto test-api test-detect test-reliability test-security ## Full suite on the host
 
 fuzz: ## Schemathesis against the OpenAPI document (no 5xx, no schema violations)
 	$(PY) python -m qg.testing fuzz
 
 ## ---- scenarios (one JSON line on stdout, exit 0 on pass) -----------------------------------
+# make scenario-NAME runs inside the running container; make dev-scenario-NAME runs on the host.
 
-scenario-normal: ## Invite, enrol, sign in, policy allow, receipt
-	$(PY) python $(ROOT)/scenarios/run.py normal
+SCENARIOS := normal revoke interrupt verify rotate privilege messaging
 
-scenario-revoke: ## Lost device: enforce time, exposure, denied attempt with QG-R001
-	$(PY) python $(ROOT)/scenarios/run.py revoke
+scenario-%: ## Scenario inside the running container (normal revoke interrupt verify rotate privilege messaging)
+	@case " $(SCENARIOS) " in *" $* "*) ;; *) echo "unknown scenario $*" >&2; exit 2;; esac
+	$(EXEC) -m qg.scenarios $*
 
-scenario-interrupt: ## Crash during re-key, duplicate events, malformed input, policy down
-	$(PY) python $(ROOT)/scenarios/run.py interrupt
+dev-scenario-%: ## Scenario on the host against a throwaway server
+	@case " $(SCENARIOS) " in *" $* "*) ;; *) echo "unknown scenario $*" >&2; exit 2;; esac
+	$(PY) python -m qg.scenarios $*
 
-scenario-verify: ## Verify a receipt offline; tamper and find the first bad index
-	$(PY) python $(ROOT)/scenarios/run.py verify
+scenarios: $(addprefix scenario-,normal revoke interrupt verify rotate privilege)
 
-scenario-rotate: ## Service key rotation; retired key denied (QG-R010)
-	$(PY) python $(ROOT)/scenarios/run.py rotate
-
-scenario-privilege: ## Unexpected privilege change detected and quarantined (QG-R005)
-	$(PY) python $(ROOT)/scenarios/run.py privilege
-
-scenario-messaging: ## Messaging device revocation
-	$(PY) python $(ROOT)/scenarios/run.py messaging
-
-scenarios: scenario-normal scenario-revoke scenario-interrupt scenario-verify scenario-rotate scenario-privilege
+dev-scenarios: $(addprefix dev-scenario-,normal revoke interrupt verify rotate privilege)
 
 ## ---- evidence, scanning, packaging -----------------------------------------------------------
 
@@ -162,4 +166,4 @@ scan-secrets: ## gitleaks over the tree and history
 readme-test: ## Run the README commands in a clean container with no info.txt
 	bash $(ROOT)/scripts/readme_test.sh
 
-verify: preflight spec-lint test-unit test-crypto test-api test-detect test-reliability scenarios scan-secrets ## Everything, stopping at the first failure
+verify: preflight spec-lint lint types dev-test dev-scenarios scan-secrets ## Everything on the host, stopping at the first failure

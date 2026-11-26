@@ -1,6 +1,5 @@
 """Enrolment, session handshake and gateway behaviour (Phase 3)."""
 
-import json
 
 import pytest
 

@@ -292,7 +292,7 @@ def keystore_vectors() -> dict[str, Any]:
         "server": None,
         "user_id": None,
     }
-    passphrase = "correct horse battery staple caf\u00e9"
+    passphrase = "correct horse battery staple caf\u00e9"  # noqa: S105 - public test vector
     doc = keystore.seal_keystore(seeds, passphrase, label, salt=det("ks salt", 16), nonce=det("ks nonce", 12))
     key = keystore.derive_key(passphrase, doc["kdf"])
     tampered_label = json.loads(json.dumps(doc))

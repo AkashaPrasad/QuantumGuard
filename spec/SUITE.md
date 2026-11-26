@@ -341,10 +341,12 @@ made once per checkpoint, never per receipt.
 ### 9.4 Offline verification (`qg verify`)
 
 Inputs: a proof bundle and pinned server public keys. Steps, stopping at the first failure:
-bundle format and suite; checkpoint dual signature; report dual signature; for each entry in order
-recompute `leaf_hash`, check it against `entries[k].leaf_hash` and walk `audit_path` to
-`checkpoint.root_hash` at `checkpoint.tree_size`; consistency proof from the earlier checkpoint
-when present. The result names the first bad `leaf_index` when an entry fails.
+1. bundle `format` and `suite`; 2. the checkpoint's dual signature; 3. each entry in `leaf_index` order:
+recompute `leaf_hash` from `canon(receipt)`, compare with `entries[k].leaf_hash`, and walk `audit_path` to
+`checkpoint.root_hash` at `checkpoint.tree_size`; 4. the bundle's own dual signature (purpose `report`);
+5. the revocation checkpoint's signature and the consistency proof from it to `checkpoint`; 6. the
+directory's dual signature. Entries are checked before the bundle signature so that a modified receipt is
+reported with its index: the result names the first bad `leaf_index`.
 
 ### 9.5 Proof bundle
 

@@ -28,9 +28,23 @@ dev = [
     "schemathesis==4.33.2",
 ]
 
+[project.scripts]
+qg = "qg.client.cli:main"
+
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# One distribution, one namespace: server (backend/qg) plus the client and scenarios kept in cli/qg.
+packages = ["qg"]
+artifacts = ["qg/storage/schema.sql", "qg/policy/rules.yaml"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"../cli/qg/client" = "qg/client"
+"../cli/qg/scenarios" = "qg/scenarios"
+
 [tool.uv]
-# Code lives in backend/qg (server) and cli/qg (client); both are on PYTHONPATH via the Makefile.
-package = false
 # Never adopt a release newer than 14 days before the build started.
 exclude-newer = "2026-11-12T00:00:00Z"
 
@@ -42,13 +56,27 @@ markers = ["slow: long-running tests"]
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 
 [tool.ruff]
-line-length = 110
+line-length = 128
 target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "S", "UP"]
-ignore = ["S101"]
+# B008: FastAPI dependencies are declared as default arguments by design.
+ignore = ["S101", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S", "E501"]
+"**/spec/vectors/**" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["qg"]
 
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+# B404/B603: subprocess is used only with fixed argument lists of sys.executable (scenario harness starting
+# the server, `qg demo seed` calling `python -m qg.admin`); no shell, no user-controlled argv.
+skips = ["B404", "B603"]

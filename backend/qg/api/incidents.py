@@ -155,7 +155,7 @@ def get_bundle(incident_id: str, request: Request, ctx: Ctx = gateway("bundle.ex
 
     core = core_of(request)
     with core.db.tx() as conn:
-        inc = _incident(core, conn, ctx, incident_id, "incident.bundle")
+        _incident(core, conn, ctx, incident_id, "incident.bundle")
         rc = core.receipt(conn, action="bundle.export", decision="allow", reason="exported", subject=ctx.subject,
                           request_hash=ctx.request_hash, resource=incident_id)
         service.timeline(core, conn, incident_id, "bundle_exported", rc["id"], "Proof bundle exported.")

@@ -17,7 +17,7 @@ from qg.core import Core
 from qg.crypto import aead
 from qg.crypto.encoding import EncodingError, b64u, b64u_decode, canon
 from qg.crypto.sign import mldsa_verify
-from qg.crypto.suite import CHUNK_BYTES, LEASE_SECONDS, MAX_FILE_BYTES, MAX_RECIPIENTS, RECOVERY_DEVICE_ID, SUITE
+from qg.crypto.suite import CHUNK_BYTES, LEASE_SECONDS, MAX_FILE_BYTES, MAX_RECIPIENTS, RECOVERY_DEVICE_ID
 from qg.errors import QGError
 from qg.gateway.http import Ctx, Strict, authorize, body_openapi, core_of, gateway, json_body, live
 from qg.ids import is_id, new_id

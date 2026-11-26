@@ -46,7 +46,8 @@ def list_receipts(request: Request, ctx: Ctx = gateway()) -> dict:
             clauses.append("leaf_index < ?")
             params.append(row[0])
         where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
-        rows = conn.execute(f"SELECT leaf FROM receipts{where} ORDER BY leaf_index DESC LIMIT ?",  # noqa: S608
+        # `where` holds only fixed column names from FILTERS; every value is a bound parameter
+        rows = conn.execute(f"SELECT leaf FROM receipts{where} ORDER BY leaf_index DESC LIMIT ?",  # noqa: S608 # nosec B608
                             (*params, limit + 1)).fetchall()
     items = [json.loads(r[0]) for r in rows]
     return paginate(items, "id", limit, None)

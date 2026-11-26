@@ -68,12 +68,14 @@ class Device:
 
     @property
     def device_id(self) -> str:
-        assert self.state.device_id
+        if not self.state.device_id:
+            raise RuntimeError("device is not enrolled")
         return self.state.device_id
 
     @property
     def user_id(self) -> str:
-        assert self.state.user_id
+        if not self.state.user_id:
+            raise RuntimeError("device is not enrolled")
         return self.state.user_id
 
     # ---- trust -------------------------------------------------------------------------------
@@ -99,10 +101,8 @@ class Device:
         return self.accept_directory(_check(self.http.get("/api/v1/directory")).json())
 
     def device_entry(self, device_id: str) -> dict[str, Any] | None:
-        if self.directory is None:
-            self.refresh_directory()
-        assert self.directory is not None
-        for d in self.directory["devices"]:
+        directory = self.directory if self.directory is not None else self.refresh_directory()
+        for d in directory["devices"]:
             if d["device_id"] == device_id:
                 return d
         return None
@@ -116,8 +116,8 @@ class Device:
             entry = self.device_entry(device_id)
         if entry is not None:
             return b64u_decode(entry["sig_pk"])
-        assert self.directory is not None
-        revoked = {r["device_id"]: r for r in self.directory.get("revoked", [])}
+        directory = self.directory if self.directory is not None else self.refresh_directory()
+        revoked = {r["device_id"]: r for r in directory.get("revoked", [])}
         r = revoked.get(device_id)
         if r is None or r["epoch"] <= manifest_epoch:
             return None

@@ -185,3 +185,23 @@ def _mount_static(app: FastAPI, dist: Path) -> None:
     @app.api_route("/{path:path}", methods=["POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     async def other(path: str) -> Response:
         raise QGError("QG_NOT_FOUND", "not_found")
+
+
+_production_app: FastAPI | None = None
+
+
+def __getattr__(name: str) -> Any:
+    """`qg.app:app` for ASGI servers (the container entrypoint): built from the environment on first use,
+    with background checkpointing started. `python -m qg.server` is the equivalent command."""
+    global _production_app
+    if name != "app":
+        raise AttributeError(name)
+    if _production_app is None:
+        from qg.config import Settings
+
+        core = Core(Settings.from_env())
+        core.log_event("server_start", port=core.settings.port, demo=core.settings.demo,
+                       policy_bundle_hash=core.policy.hash)
+        core.start_background()
+        _production_app = create_app(core)
+    return _production_app

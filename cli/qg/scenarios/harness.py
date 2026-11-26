@@ -72,7 +72,8 @@ class Server:
         raise RuntimeError("server did not start")
 
     def _read(self) -> None:
-        assert self.proc and self.proc.stdout
+        if self.proc is None or self.proc.stdout is None:
+            return
         for line in self.proc.stdout:
             line = line.rstrip("\n")
             self.lines.append(line)
