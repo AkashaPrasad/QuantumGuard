@@ -197,7 +197,7 @@
     -webkit-text-size-adjust: 100%;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-sm leading-normal text-foreground antialiased;
     font-feature-settings: "ss01", "zero";
   }
   h1, h2, h3, h4 {
@@ -243,4 +243,24 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Receipt slip: a paper strip with a torn lower edge. `--slip-surround` is the colour behind it. */
+.slip {
+  position: relative;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-bottom: 0;
+}
+.slip::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  bottom: -7px;
+  height: 8px;
+  background:
+    linear-gradient(135deg, var(--paper-raised) 5px, transparent 5.5px) 0 0 / 10px 8px repeat-x,
+    linear-gradient(225deg, var(--paper-raised) 5px, transparent 5.5px) 0 0 / 10px 8px repeat-x;
+  filter: drop-shadow(0 1px 0 var(--rule));
 }
