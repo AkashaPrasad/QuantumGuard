@@ -177,7 +177,7 @@ People are read from the directory (`users`). There is no separate user list rou
 | `POST /files/{id}/versions` | `{reason: "rekey"|"update", size_bytes, chunk_count}` -> `{version}` (pending) |
 | `PUT /files/{id}/versions/{v}/chunks/{n}` | raw ciphertext chunk, `Content-Type: application/octet-stream` -> `204`. Idempotent for the same bytes |
 | `POST /files/{id}/versions/{v}/commit` | `{manifest, manifest_sig, wraps:[{device_id, xwing_ct, wrapped_dek}], recovery_wrap:{xwing_ct, wrapped_dek}}` -> `{file: File, receipt_id}` |
-| `GET /files/{id}/slot` | -> `{slot_id, file_id, version, device_id, inner_wrap:{xwing_ct, wrapped_dek}, manifest, manifest_sig, signer_device_id, lease:{lease_id, expires_at}, receipt_id}` |
+| `GET /files/{id}/slot` | -> `{slot_id, file_id, version, device_id, wrap_epoch, inner_wrap:{xwing_ct, wrapped_dek}, manifest, manifest_sig, signer_device_id, lease:{lease_id, expires_at}, receipt_id}`. `wrap_epoch` is the directory epoch the inner wrap was bound to: the manifest's for a wrap made at commit, the share statement's for a wrap added by `/share` |
 | `GET /files/{id}/chunks/{n}` | header `QG-Lease: lse_...` -> raw ciphertext chunk. The lease is checked on every chunk |
 | `POST /files/{id}/share` | `{share:{suite, file_id, version, recipients:[device_id], directory_epoch}, share_sig, wraps:[...]}` -> `{file: File, receipt_id}` |
 | `POST /files/{id}/unshare` | `{user_id}` -> `{file: File, receipt_id}`; that person's slots are deleted and the file is queued for re-key |
@@ -243,10 +243,12 @@ from the revoked device after the revoke committed.
 | `POST /responses/{id}/lift` | operator | `{reason}` -> Alert |
 | `POST /signals` | operator; service identity | Security Event Token shaped body (`spec/SUITE.md`) -> `{signal_id, accepted: true, duplicate: bool}` |
 | `GET /signals` | operator, auditor | recent signals |
-| `GET /policy` | everyone | `{bundle_hash, version, signed_at, signatures, rules:[{id, effect: "allow"|"deny", description, roles[], actions[], conditions}]}` |
+| `GET /policy` | everyone | `{bundle_hash, version, signed_at, signatures, document, rules:[{id, effect: "allow"|"deny", description, roles[], actions[], conditions}]}`. `document` is the b64u of the exact signed bundle bytes; `bundle_hash` is its SHA-256 and `signatures` cover it, so a client can check the rules it is shown |
 | `GET /overview` | admin, operator, auditor | `{active_devices, revoked_devices, pending_rekeys, open_alerts, open_incidents, last_time_to_enforce_ms | null, directory_epoch, tree_size, decisions_by_hour:[{hour, allow, deny}]}` (last 24 hours) |
 
-`Change` = `{id, type, target_user:{user_id, name}, role, file_id, reason, requested_by:{user_id, name, device_id}, requested_at, status: "pending"|"applied"|"rejected", approvals:[{user_id, name, device_id, at}], approvals_required}`.
+`Change` = `{id, type, target_user:{user_id, name}, role, file_id, reason, requested_by:{user_id, name, device_id}, requested_at, status: "pending"|"applied"|"rejected", approvals:[{user_id, name, device_id, at, signature}], approvals_required, change, change_hash, signature}`.
+
+`change` is the exact statement the requester signed, `signature` is that signature, and `change_hash` is the b64u SHA-256 of its canonical JSON. An approver verifies `signature` against the requester's certificate, recomputes `change_hash` from `change`, and signs it (context `QG/v1/change`); the server rejects an approval whose signature does not cover that hash.
 
 Approval rules (the seeded organisation has two admins and one operator, so these must be satisfiable):
 
@@ -267,7 +269,7 @@ Approving your own request, or a request that targets you, answers `QG_DENY_POLI
 | `GET /services` | admin, operator, auditor | `[{service_id, name, status, keys:[{key_id, alg, status: "active"|"retiring"|"retired", created_at, retired_at | null}]}]` |
 | `POST /services` | admin | `{name}` -> service with its first key |
 | `POST /services/{id}/rotate` | admin; operator with `emergency: true` | `{reason, emergency}` -> service; publishes a new signed key set |
-| `GET /messages` | everyone | envelopes addressed to this device |
+| `GET /messages` | everyone | `[{message_id, from:{user_id, name, device_id}, sent_at, envelope:{xwing_ct, ciphertext}, signature}]`: only the envelope addressed to the calling device; `signature` is the sender's, over the message statement in `spec/SUITE.md` |
 | `POST /messages` | everyone | `{to_user_id, envelopes:[{device_id, xwing_ct, ciphertext}], signature}` -> `{message_id}` |
 | `POST /files/{id}/recover` | admin holding the recovery kit | `{change_id}` -> `{recovery_wrap, manifest, manifest_sig}` only when that `recovery_release` change is applied |
 
