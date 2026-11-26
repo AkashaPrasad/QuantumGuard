@@ -19,3 +19,6 @@ while IFS= read -r -d '' path; do
     printf '%s\0' "$path" >> "$file_list"
 done < <(git ls-files --cached --others --exclude-standard -z)
 tar -c -f - --null -T "$file_list" | tar -x -f - -C "$destination"
+# Scanner containers run as their own non-root users and mount the snapshot read-only; mktemp creates
+# it as 0700, so grant read and directory traversal to everyone (it holds no credential files).
+chmod -R a+rX "$destination"
